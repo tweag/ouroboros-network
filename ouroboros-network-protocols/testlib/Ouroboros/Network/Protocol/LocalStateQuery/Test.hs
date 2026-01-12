@@ -166,10 +166,10 @@ prop_direct :: SetupData
 prop_direct input =
     runSimOrThrow
       (direct
-        (localStateQueryClient clientInput)
-        (localStateQueryServer serverAcquire serverAnswer))
+        (localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+        (localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer))
   ===
-    (expected, ())
+    (map (\(t, r) -> (t, False, r)) expected, ())
   where
     Setup { clientInput, serverAcquire, serverAnswer, expected } = mkSetup input
 
@@ -187,12 +187,12 @@ prop_connect input =
     case runSimOrThrow
            (Stateful.connect StateIdle
              (localStateQueryClientPeer $
-              localStateQueryClient clientInput)
+              localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
              (localStateQueryServerPeer $
-              localStateQueryServer serverAcquire serverAnswer)) of
+              localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)) of
 
       (result, (), Stateful.TerminalStates SingDone SingDone) ->
-        result === expected
+        (map (\(tgt, _, er) -> (tgt, er)) result) === expected
   where
     Setup { clientInput, serverAcquire, serverAnswer, expected } = mkSetup input
 
@@ -220,11 +220,11 @@ prop_channel createChannels input = do
         codec
         StateIdle
         (localStateQueryClientPeer $
-         localStateQueryClient clientInput)
+         localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
         (localStateQueryServerPeer $
-         localStateQueryServer serverAcquire serverAnswer)
+         localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)
     return $ case r of
-      (result, ()) -> result === expected
+      (result, ()) -> map (\(tgt, _, rs) -> (tgt, rs)) result === expected
   where
     Setup { clientInput, serverAcquire, serverAnswer, expected } = mkSetup input
 
@@ -268,6 +268,7 @@ instance Arbitrary AcquireFailure where
   arbitrary = elements
     [ AcquireFailurePointTooOld
     , AcquireFailurePointNotOnChain
+    , AcquireFailurePointStateIsBusy
     ]
 
 instance Arbitrary (Query MockLedgerState) where
@@ -292,7 +293,7 @@ instance ( Arbitrary point
       arbitrary = oneof
         [ AnyMessageWithResult . getAnyMessageV7 <$> (arbitrary :: Gen (AnyMessageV7 block point query result))
 
-        , AnyMessageWithResult . Stateful.AnyMessage StateIdle . MsgAcquire <$> arbitrary
+        , AnyMessageWithResult . Stateful.AnyMessage StateIdle <$> (MsgAcquire <$> arbitrary <*> arbitrary)
 
         , AnyMessageWithResult . Stateful.AnyMessage StateAcquired . MsgReAcquire <$> arbitrary
         ]
@@ -312,7 +313,7 @@ instance ( Arbitrary point
       => Arbitrary (AnyMessageV7 block point query result) where
   arbitrary = AnyMessageV7 <$> oneof
     [ Stateful.AnyMessage StateIdle
-        <$> (MsgAcquire <$> arbitrary)
+        <$> (MsgAcquire <$> arbitrary <*> arbitrary)
 
     , pure (Stateful.AnyMessage StateAcquiring MsgAcquired)
 
@@ -342,8 +343,8 @@ instance ShowQuery Query where
 
 instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) State) where
 
-  (==) (Stateful.AnyMessage _ (MsgAcquire tgt))
-       (Stateful.AnyMessage _ (MsgAcquire tgt')) = tgt == tgt'
+  (==) (Stateful.AnyMessage _ (MsgAcquire tgt leashed))
+       (Stateful.AnyMessage _ (MsgAcquire tgt' leashed')) = tgt == tgt' && leashed == leashed'
 
   (==) (Stateful.AnyMessage _ MsgAcquired)
        (Stateful.AnyMessage _ MsgAcquired) = True

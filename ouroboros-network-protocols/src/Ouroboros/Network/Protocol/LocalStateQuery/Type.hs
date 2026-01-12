@@ -141,6 +141,7 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     --
     MsgAcquire
       :: Target point
+      -> Bool
       -> Message (LocalStateQuery block point query) StIdle StAcquiring
 
     -- | The server can confirm that it has the state at the requested point.
@@ -204,7 +205,7 @@ instance ( forall result. NFData (query result)
          , NFData point
          )
          => NFData (Message (LocalStateQuery block point query) from to) where
-  rnf (MsgAcquire mbPoint)   = rnf mbPoint
+  rnf (MsgAcquire mbPoint leashed)   = rnf mbPoint `seq` rnf leashed
   rnf MsgAcquired            = ()
   rnf (MsgFailure af)        = rnf af
   rnf (MsgQuery qr)          = rnf qr
@@ -215,6 +216,7 @@ instance ( forall result. NFData (query result)
 
 data AcquireFailure = AcquireFailurePointTooOld
                     | AcquireFailurePointNotOnChain
+                    | AcquireFailurePointStateIsBusy
   deriving (Eq, Enum, Show, Generic, NFData)
 
 
@@ -233,10 +235,11 @@ class (forall result. Show (query result)) => ShowQuery query where
 instance (ShowQuery query, Show point)
       => Show (AnyMessage (LocalStateQuery block point query) State) where
   showsPrec p msg = case msg of
-      AnyMessage _f (MsgAcquire pt) ->
+      AnyMessage _f (MsgAcquire pt leashed) ->
         showParen (p >= 11) $
         showString "MsgAcquire " .
-        showsPrec 11 pt
+        showsPrec 11 pt .
+        showsPrec 11 leashed
       AnyMessage _f MsgAcquired ->
         showString "MsgAcquired"
       AnyMessage _f (MsgFailure failure) ->
