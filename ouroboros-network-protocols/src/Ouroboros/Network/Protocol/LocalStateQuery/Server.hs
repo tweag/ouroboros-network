@@ -37,6 +37,7 @@ newtype LocalStateQueryServer block point (query :: Type -> Type) m a = LocalSta
 --
 data ServerStIdle block point query m a = ServerStIdle {
        recvMsgAcquire :: Target point
+                      -> Bool
                       -> m (ServerStAcquiring block point query m a),
 
        recvMsgDone    :: m a
@@ -101,7 +102,7 @@ localStateQueryServerPeer (LocalStateQueryServer handler) =
       -> Server (LocalStateQuery block point query) StIdle State m a
     handleStIdle ServerStIdle{recvMsgAcquire, recvMsgDone} =
       Await $ \_ req -> case req of
-        MsgAcquire pt -> ( Effect $ handleStAcquiring <$> recvMsgAcquire pt
+        MsgAcquire pt leashed -> ( Effect $ handleStAcquiring <$> recvMsgAcquire pt leashed
                          , StateAcquiring
                          )
         MsgDone -> ( Effect $ Done <$> recvMsgDone

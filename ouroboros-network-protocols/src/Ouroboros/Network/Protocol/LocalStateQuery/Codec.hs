@@ -61,6 +61,7 @@ codecLocalStateQuery version
     encodeFailure :: AcquireFailure -> CBOR.Encoding
     encodeFailure AcquireFailurePointTooOld     = CBOR.encodeWord8 0
     encodeFailure AcquireFailurePointNotOnChain = CBOR.encodeWord8 1
+    encodeFailure AcquireFailurePointStateIsBusy = CBOR.encodeWord8 2
 
     decodeFailure :: forall s. CBOR.Decoder s AcquireFailure
     decodeFailure = do
@@ -68,6 +69,7 @@ codecLocalStateQuery version
       case tag of
         0 -> return AcquireFailurePointTooOld
         1 -> return AcquireFailurePointNotOnChain
+        2 -> return AcquireFailurePointStateIsBusy
         _ -> fail $ "decodeFailure: invalid tag " <> show tag
 
     encode :: forall (st  :: LocalStateQuery block point query)
@@ -75,19 +77,40 @@ codecLocalStateQuery version
               State st
            -> Message (LocalStateQuery block point query) st st'
            -> CBOR.Encoding
-    encode _ (MsgAcquire (SpecificPoint pt)) =
+    encode _ (MsgAcquire (SpecificPoint pt) False) =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 0
      <> encodePoint pt
 
-    encode _ (MsgAcquire VolatileTip) =
+    encode _ (MsgAcquire (SpecificPoint pt) True) =
+        CBOR.encodeListLen 3
+     <> CBOR.encodeWord 0
+     <> encodePoint pt
+     <> CBOR.encodeBool True
+
+    encode _ (MsgAcquire VolatileTip False) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 8
 
-    encode _ (MsgAcquire ImmutableTip)
+    encode _ (MsgAcquire VolatileTip True) =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 8
+     <> CBOR.encodeBool True
+
+    encode _ (MsgAcquire ImmutableTip False)
       | canAcquireImmutable =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 10
+      | otherwise =
+      error $ "encodeFailure: local state query: acquiring the immutable tip "
+           ++ "must be conditional on negotiating v16 of the node-to-client "
+           ++ "protocol"
+
+    encode _ (MsgAcquire ImmutableTip True)
+      | canAcquireImmutable =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 10
+     <> CBOR.encodeBool True
       | otherwise =
       error $ "encodeFailure: local state query: acquiring the immutable tip "
            ++ "must be conditional on negotiating v16 of the node-to-client "
@@ -149,13 +172,26 @@ codecLocalStateQuery version
       case (stok, f, len, key) of
         (SingIdle, _, 2, 0) -> do
           pt <- decodePoint
-          return (SomeMessage (MsgAcquire (SpecificPoint pt)))
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) False))
+
+        (SingIdle, _, 3, 0) -> do
+          pt <- decodePoint
+          leashed <- CBOR.decodeBool
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) leashed))
 
         (SingIdle, _, 1, 8) -> do
-          return (SomeMessage (MsgAcquire VolatileTip))
+          return (SomeMessage (MsgAcquire VolatileTip False))
+
+        (SingIdle, _, 2, 8) -> do
+          leashed <- CBOR.decodeBool
+          return (SomeMessage (MsgAcquire VolatileTip leashed))
 
         (SingIdle, _, 1, 10) -> do
-          return (SomeMessage (MsgAcquire ImmutableTip))
+          return (SomeMessage (MsgAcquire ImmutableTip False))
+
+        (SingIdle, _, 2, 10) -> do
+          leashed <- CBOR.decodeBool
+          return (SomeMessage (MsgAcquire ImmutableTip leashed))
 
         (SingAcquiring, _, 1, 1) ->
           return (SomeMessage MsgAcquired)

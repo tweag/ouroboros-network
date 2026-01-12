@@ -40,6 +40,7 @@ newtype LocalStateQueryClient block point (query :: Type -> Type) m a =
 --
 data ClientStIdle block point query (m :: Type -> Type) a where
   SendMsgAcquire :: Target point
+                 -> Bool
                  -> ClientStAcquiring block point query m a
                  -> ClientStIdle      block point query m a
 
@@ -109,8 +110,8 @@ mapLocalStateQueryClient fpoint fquery fresult =
   where
     goIdle :: ClientStIdle block  point  query  m a
            -> ClientStIdle block' point' query' m a
-    goIdle (SendMsgAcquire tgt k) =
-      SendMsgAcquire (fpoint <$> tgt) (goAcquiring k)
+    goIdle (SendMsgAcquire tgt leashed k) =
+      SendMsgAcquire (fpoint <$> tgt) leashed (goAcquiring k)
 
     goIdle (SendMsgDone a) = SendMsgDone a
 
@@ -158,9 +159,9 @@ localStateQueryClientPeer (LocalStateQueryClient handler) =
       :: ClientStIdle block point query m a
       -> Client (LocalStateQuery block point query) StIdle State m a
     handleStIdle req = case req of
-      SendMsgAcquire tgt stAcquiring ->
+      SendMsgAcquire tgt leashed stAcquiring ->
         Yield StateIdle StateAcquiring
-              (MsgAcquire tgt)
+              (MsgAcquire tgt leashed)
               (handleStAcquiring stAcquiring)
       SendMsgDone a ->
         Yield StateIdle StateDone MsgDone (Done a)
