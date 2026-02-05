@@ -165,10 +165,10 @@ prop_direct :: SetupData
 prop_direct input =
     runSimOrThrow
       (direct
-        (localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+        (localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
         (localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer))
   ===
-    (map (\(t, r) -> (t, False, r)) expected, ())
+    (map (\(t, r) -> (t, Nothing, r)) expected, ())
   where
     Setup { clientInput, serverAcquire, serverAnswer, expected } = mkSetup input
 
@@ -186,7 +186,7 @@ prop_connect input =
     case runSimOrThrow
            (Stateful.connect StateIdle
              (localStateQueryClientPeer $
-              localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+              localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
              (localStateQueryServerPeer $
               localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)) of
 
@@ -218,7 +218,7 @@ prop_channel createChannels input = do
         codec
         StateIdle
         (localStateQueryClientPeer $
-         localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+         localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
         (localStateQueryServerPeer $
          localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)
     return $ case r of
@@ -303,6 +303,8 @@ newtype AnyMessageV7 block point query result = AnyMessageV7 {
       :: Stateful.AnyMessage (LocalStateQuery block point query) State
   }
   deriving Show
+
+deriving instance Arbitrary LeashID
 
 instance ( Arbitrary point
          , Arbitrary (query result)
