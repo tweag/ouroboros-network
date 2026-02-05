@@ -12,6 +12,8 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE UndecidableInstances     #-}
+{-# LANGUAGE DerivingStrategies       #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | The type of the local ledger state query protocol.
 --
@@ -29,6 +31,8 @@ import Network.TypedProtocol.Stateful.Codec (AnyMessage (..))
 import Control.DeepSeq
 import GHC.Generics
 import Ouroboros.Network.Util.ShowProxy (ShowProxy (..))
+import Data.Word (Word32)
+import NoThunks.Class (NoThunks)
 
 
 -- | The kind of the local state query protocol, and the types of
@@ -128,6 +132,12 @@ data Target point = -- | The tip of the volatile chain
                   | ImmutableTip
   deriving (Eq, Foldable, Functor, Generic, Ord, Show, Traversable, NFData)
 
+
+newtype LeashID = LeashID Word32
+  deriving stock (Show)
+  -- TODO: anything else?
+  deriving newtype (Eq, Ord, NFData, Num, Read, NoThunks)
+
 instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Type -> Type)) where
 
   -- | The messages in the state query protocol.
@@ -141,7 +151,7 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     --
     MsgAcquire
       :: Target point
-      -> Bool
+      -> Maybe LeashID -- ^ Optional leashing ID
       -> Message (LocalStateQuery block point query) StIdle StAcquiring
 
     -- | The server can confirm that it has the state at the requested point.

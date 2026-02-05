@@ -37,7 +37,7 @@ newtype LocalStateQueryServer block point (query :: Type -> Type) m a = LocalSta
 --
 data ServerStIdle block point query m a = ServerStIdle {
        recvMsgAcquire :: Target point
-                      -> Bool
+                      -> Maybe LeashID
                       -> m (ServerStAcquiring block point query m a),
 
        recvMsgDone    :: m a

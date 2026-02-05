@@ -40,7 +40,7 @@ newtype LocalStateQueryClient block point (query :: Type -> Type) m a =
 --
 data ClientStIdle block point query (m :: Type -> Type) a where
   SendMsgAcquire :: Target point
-                 -> Bool
+                 -> Maybe LeashID
                  -> ClientStAcquiring block point query m a
                  -> ClientStIdle      block point query m a
 
