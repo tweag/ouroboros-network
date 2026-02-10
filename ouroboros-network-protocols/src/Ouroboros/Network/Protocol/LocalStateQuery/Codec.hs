@@ -135,9 +135,14 @@ codecLocalStateQuery version
      <> CBOR.encodeWord 4
      <> encodeResult query result
 
-    encode _ MsgRelease =
+    encode _ (MsgRelease Nothing) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 5
+
+    encode _ (MsgRelease (Just (LeashID leashId))) =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 5
+     <> CBOR.encodeWord32 leashId
 
     encode _ (MsgReAcquire (SpecificPoint pt)) =
         CBOR.encodeListLen 2
@@ -209,7 +214,11 @@ codecLocalStateQuery version
           return (SomeMessage (MsgResult result))
 
         (SingAcquired, _, 1, 5) ->
-          return (SomeMessage MsgRelease)
+          return (SomeMessage $ MsgRelease Nothing)
+
+        (SingAcquired, _, 2, 5) -> do
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage $ MsgRelease (Just (LeashID leashId)))
 
         (SingAcquired, _, 2, 6) -> do
           pt <- decodePoint

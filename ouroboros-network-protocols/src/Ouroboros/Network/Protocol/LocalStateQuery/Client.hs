@@ -77,7 +77,8 @@ data ClientStAcquired block point query m a where
                    -> ClientStAcquiring block point query m a
                    -> ClientStAcquired  block point query m a
 
-  SendMsgRelease   :: m (ClientStIdle   block point query m a)
+  SendMsgRelease   :: Maybe LeashID
+                   -> m (ClientStIdle   block point query m a)
                    -> ClientStAcquired  block point query m a
 
 -- | In the 'StQuerying' protocol state, the client does not have agency.
@@ -127,8 +128,8 @@ mapLocalStateQueryClient fpoint fquery fresult =
                -> ClientStAcquired block' point' query' m a
     goAcquired (SendMsgQuery     q  k) = case fquery q of
                                            Some q' -> SendMsgQuery q' (goQuerying q q' k)
-    goAcquired (SendMsgReAcquire tgt k) = SendMsgReAcquire (fpoint <$> tgt) (goAcquiring k)
-    goAcquired (SendMsgRelease       k) = SendMsgRelease (fmap goIdle k)
+    goAcquired (SendMsgReAcquire tgt    k) = SendMsgReAcquire (fpoint <$> tgt) (goAcquiring k)
+    goAcquired (SendMsgRelease mLeashId k) = SendMsgRelease mLeashId (fmap goIdle k)
 
     goQuerying :: forall result result'.
                   query  result
@@ -190,9 +191,9 @@ localStateQueryClientPeer (LocalStateQueryClient handler) =
         Yield StateAcquired StateAcquiring
               (MsgReAcquire tgt)
               (handleStAcquiring stAcquiring)
-      SendMsgRelease stIdle ->
+      SendMsgRelease mLeashId stIdle ->
         Yield StateAcquired StateIdle
-              MsgRelease
+              (MsgRelease mLeashId)
               (Effect (handleStIdle <$> stIdle))
 
     handleStQuerying

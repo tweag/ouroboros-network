@@ -179,10 +179,14 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
       -> Message (LocalStateQuery block point query) (StQuerying result) StAcquired
 
     -- | The client can instruct the server to release the state. This lets
-    -- the server free resources.
+    -- the server free resources. If the LeashID is set, it means that this client's
+    -- leash should be removed, otherwise the node should continue to be leashed
+    -- for later reconnection.
     --
     MsgRelease
-      :: Message (LocalStateQuery block point query) StAcquired StIdle
+        -- TODO: Should there be a backwards compatible pattern and a new one for leashing?
+      :: Maybe LeashID -- If this is set, then it means the client wishes to UNleash
+      -> Message (LocalStateQuery block point query) StAcquired StIdle
 
     -- | This is like 'MsgAcquire' but for when the client already has a
     -- state. By moving to another state directly without a 'MsgRelease' it
@@ -220,7 +224,7 @@ instance ( forall result. NFData (query result)
   rnf (MsgFailure af)        = rnf af
   rnf (MsgQuery qr)          = rnf qr
   rnf (MsgResult r)          = rwhnf r
-  rnf MsgRelease             = ()
+  rnf (MsgRelease lId)       = rnf lId
   rnf (MsgReAcquire mbPoint) = rnf mbPoint
   rnf MsgDone                = ()
 
@@ -264,8 +268,10 @@ instance (ShowQuery query, Show point)
         showParen (p >= 11) $
         showString "MsgResult " .
         showParen True (showString (showResult query result))
-      AnyMessage _f MsgRelease ->
-        showString "MsgRelease"
+      AnyMessage _f (MsgRelease mLeashId) ->
+        showParen (p >= 11) $
+        showString "MsgRelease" .
+        showsPrec 11 mLeashId
       AnyMessage _f (MsgReAcquire pt) ->
         showParen (p >= 11) $
         showString "MsgReAcquire " .

@@ -330,7 +330,9 @@ instance ( Arbitrary point
                             (MsgResult result))
         <$> (arbitrary :: Gen (QueryWithResult query result))
 
-    , pure (Stateful.AnyMessage StateAcquired MsgRelease)
+    , (\mLeashId ->
+        Stateful.AnyMessage StateAcquired (MsgRelease mLeashId))
+        <$> arbitrary
 
     , Stateful.AnyMessage StateAcquired
       <$> (MsgReAcquire <$> arbitrary)
@@ -343,8 +345,8 @@ instance ShowQuery Query where
 
 instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) State) where
 
-  (==) (Stateful.AnyMessage _ (MsgAcquire tgt leashed))
-       (Stateful.AnyMessage _ (MsgAcquire tgt' leashed')) = tgt == tgt' && leashed == leashed'
+  (==) (Stateful.AnyMessage _ (MsgAcquire tgt mLeashId))
+       (Stateful.AnyMessage _ (MsgAcquire tgt' mLeashId')) = tgt == tgt' && mLeashId == mLeashId'
 
   (==) (Stateful.AnyMessage _ MsgAcquired)
        (Stateful.AnyMessage _ MsgAcquired) = True
@@ -362,8 +364,8 @@ instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) St
          case (query, query') of
            (GetTheLedgerState, GetTheLedgerState) -> result == result'
 
-  (==) (Stateful.AnyMessage _ MsgRelease)
-       (Stateful.AnyMessage _ MsgRelease) = True
+  (==) (Stateful.AnyMessage _ (MsgRelease mLeashId))
+       (Stateful.AnyMessage _ (MsgRelease mLeashId')) = mLeashId == mLeashId'
 
   (==) (Stateful.AnyMessage _ (MsgReAcquire tgt))
        (Stateful.AnyMessage _ (MsgReAcquire tgt')) = tgt == tgt'
