@@ -166,10 +166,10 @@ prop_direct :: SetupData
 prop_direct input =
     runSimOrThrow
       (direct
-        (localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+        (localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
         (localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer))
   ===
-    (map (\(t, r) -> (t, False, r)) expected, ())
+    (map (\(t, r) -> (t, Nothing, r)) expected, ())
   where
     Setup { clientInput, serverAcquire, serverAnswer, expected } = mkSetup input
 
@@ -187,7 +187,7 @@ prop_connect input =
     case runSimOrThrow
            (Stateful.connect StateIdle
              (localStateQueryClientPeer $
-              localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+              localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
              (localStateQueryServerPeer $
               localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)) of
 
@@ -220,7 +220,7 @@ prop_channel createChannels input = do
         codec
         StateIdle
         (localStateQueryClientPeer $
-         localStateQueryClient (map (\(tgt, q) -> (tgt, False, q)) clientInput))
+         localStateQueryClient (map (\(tgt, q) -> (tgt, Nothing, q)) clientInput))
         (localStateQueryServerPeer $
          localStateQueryServer (\tgt _ -> serverAcquire tgt) serverAnswer)
     return $ case r of
@@ -306,6 +306,8 @@ newtype AnyMessageV7 block point query result = AnyMessageV7 {
   }
   deriving Show
 
+deriving instance Arbitrary LeashID
+
 instance ( Arbitrary point
          , Arbitrary (query result)
          , Arbitrary result
@@ -330,7 +332,9 @@ instance ( Arbitrary point
                             (MsgResult result))
         <$> (arbitrary :: Gen (QueryWithResult query result))
 
-    , pure (Stateful.AnyMessage StateAcquired MsgRelease)
+    , (\mLeashId ->
+        Stateful.AnyMessage StateAcquired (MsgRelease mLeashId))
+        <$> arbitrary
 
     , Stateful.AnyMessage StateAcquired
       <$> (MsgReAcquire <$> arbitrary)
@@ -343,8 +347,8 @@ instance ShowQuery Query where
 
 instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) State) where
 
-  (==) (Stateful.AnyMessage _ (MsgAcquire tgt leashed))
-       (Stateful.AnyMessage _ (MsgAcquire tgt' leashed')) = tgt == tgt' && leashed == leashed'
+  (==) (Stateful.AnyMessage _ (MsgAcquire tgt mLeashId))
+       (Stateful.AnyMessage _ (MsgAcquire tgt' mLeashId')) = tgt == tgt' && mLeashId == mLeashId'
 
   (==) (Stateful.AnyMessage _ MsgAcquired)
        (Stateful.AnyMessage _ MsgAcquired) = True
@@ -362,8 +366,8 @@ instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) St
          case (query, query') of
            (GetTheLedgerState, GetTheLedgerState) -> result == result'
 
-  (==) (Stateful.AnyMessage _ MsgRelease)
-       (Stateful.AnyMessage _ MsgRelease) = True
+  (==) (Stateful.AnyMessage _ (MsgRelease mLeashId))
+       (Stateful.AnyMessage _ (MsgRelease mLeashId')) = mLeashId == mLeashId'
 
   (==) (Stateful.AnyMessage _ (MsgReAcquire tgt))
        (Stateful.AnyMessage _ (MsgReAcquire tgt')) = tgt == tgt'
