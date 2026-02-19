@@ -37,7 +37,7 @@ newtype LocalStateQueryServer block point (query :: Type -> Type) m a = LocalSta
 --
 data ServerStIdle block point query m a = ServerStIdle {
        recvMsgAcquire :: Target point
-                      -> Bool
+                      -> Maybe LeashID
                       -> m (ServerStAcquiring block point query m a),
 
        recvMsgDone    :: m a
@@ -74,7 +74,8 @@ data ServerStAcquired block point query m a = ServerStAcquired {
       recvMsgReAcquire :: Target point
                        -> m (ServerStAcquiring block point query m a),
 
-      recvMsgRelease   :: m (ServerStIdle      block point query m a)
+      recvMsgRelease   :: Maybe LeashID
+                       -> m (ServerStIdle      block point query m a)
     }
 
 -- | In the 'StQuerying' protocol state, the server has agency and must send:
@@ -127,15 +128,15 @@ localStateQueryServerPeer (LocalStateQueryServer handler) =
       -> Server (LocalStateQuery block point query) StAcquired State m a
     handleStAcquired ServerStAcquired{recvMsgQuery, recvMsgReAcquire, recvMsgRelease} =
       Await $ \_ req -> case req of
-        MsgQuery query  -> ( Effect $ handleStQuerying query <$> recvMsgQuery query
-                           , StateQuerying query
-                           )
-        MsgReAcquire pt -> ( Effect $ handleStAcquiring      <$> recvMsgReAcquire pt
-                           , StateAcquiring
-                           )
-        MsgRelease      -> ( Effect $ handleStIdle           <$> recvMsgRelease
-                           , StateIdle
-                           )
+        MsgQuery query      -> ( Effect $ handleStQuerying query <$> recvMsgQuery query
+                               , StateQuerying query
+                               )
+        MsgReAcquire pt     -> ( Effect $ handleStAcquiring      <$> recvMsgReAcquire pt
+                               , StateAcquiring
+                               )
+        MsgRelease mLeashId -> ( Effect $ handleStIdle           <$> recvMsgRelease mLeashId
+                               , StateIdle
+                               )
 
     handleStQuerying
       :: query result

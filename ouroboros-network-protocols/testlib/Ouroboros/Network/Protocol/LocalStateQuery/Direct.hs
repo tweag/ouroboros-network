@@ -48,9 +48,9 @@ direct (LocalStateQueryClient mclient) (LocalStateQueryServer mserver) = do
     directAcquired (SendMsgReAcquire tgt client') ServerStAcquired{recvMsgReAcquire} = do
       server' <- recvMsgReAcquire tgt
       directAcquiring client' server'
-    directAcquired (SendMsgRelease client) ServerStAcquired{recvMsgRelease} = do
+    directAcquired (SendMsgRelease mLeashId client) ServerStAcquired{recvMsgRelease} = do
       client' <- client
-      server' <- recvMsgRelease
+      server' <- recvMsgRelease mLeashId
       directIdle client' server'
 
     directQuerying

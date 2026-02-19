@@ -77,27 +77,27 @@ codecLocalStateQuery version
               State st
            -> Message (LocalStateQuery block point query) st st'
            -> CBOR.Encoding
-    encode _ (MsgAcquire (SpecificPoint pt) False) =
+    encode _ (MsgAcquire (SpecificPoint pt) Nothing) =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 0
      <> encodePoint pt
 
-    encode _ (MsgAcquire (SpecificPoint pt) True) =
+    encode _ (MsgAcquire (SpecificPoint pt) (Just (LeashID leashId))) =
         CBOR.encodeListLen 3
      <> CBOR.encodeWord 0
      <> encodePoint pt
-     <> CBOR.encodeBool True
+     <> CBOR.encodeWord32 leashId
 
-    encode _ (MsgAcquire VolatileTip False) =
+    encode _ (MsgAcquire VolatileTip Nothing) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 8
 
-    encode _ (MsgAcquire VolatileTip True) =
+    encode _ (MsgAcquire VolatileTip (Just (LeashID leashId))) =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 8
-     <> CBOR.encodeBool True
+     <> CBOR.encodeWord32 leashId
 
-    encode _ (MsgAcquire ImmutableTip False)
+    encode _ (MsgAcquire ImmutableTip Nothing)
       | canAcquireImmutable =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 10
@@ -106,11 +106,11 @@ codecLocalStateQuery version
            ++ "must be conditional on negotiating v16 of the node-to-client "
            ++ "protocol"
 
-    encode _ (MsgAcquire ImmutableTip True)
+    encode _ (MsgAcquire ImmutableTip (Just (LeashID leashId)))
       | canAcquireImmutable =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 10
-     <> CBOR.encodeBool True
+     <> CBOR.encodeWord32 leashId
       | otherwise =
       error $ "encodeFailure: local state query: acquiring the immutable tip "
            ++ "must be conditional on negotiating v16 of the node-to-client "
@@ -135,9 +135,14 @@ codecLocalStateQuery version
      <> CBOR.encodeWord 4
      <> encodeResult query result
 
-    encode _ MsgRelease =
+    encode _ (MsgRelease Nothing) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 5
+
+    encode _ (MsgRelease (Just (LeashID leashId))) =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 5
+     <> CBOR.encodeWord32 leashId
 
     encode _ (MsgReAcquire (SpecificPoint pt)) =
         CBOR.encodeListLen 2
@@ -172,26 +177,26 @@ codecLocalStateQuery version
       case (stok, f, len, key) of
         (SingIdle, _, 2, 0) -> do
           pt <- decodePoint
-          return (SomeMessage (MsgAcquire (SpecificPoint pt) False))
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) Nothing))
 
         (SingIdle, _, 3, 0) -> do
           pt <- decodePoint
-          leashed <- CBOR.decodeBool
-          return (SomeMessage (MsgAcquire (SpecificPoint pt) leashed))
+          leashed <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) (Just (LeashID leashed))))
 
         (SingIdle, _, 1, 8) -> do
-          return (SomeMessage (MsgAcquire VolatileTip False))
+          return (SomeMessage (MsgAcquire VolatileTip Nothing))
 
         (SingIdle, _, 2, 8) -> do
-          leashed <- CBOR.decodeBool
-          return (SomeMessage (MsgAcquire VolatileTip leashed))
+          leashed <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire VolatileTip (Just (LeashID leashed))))
 
         (SingIdle, _, 1, 10) -> do
-          return (SomeMessage (MsgAcquire ImmutableTip False))
+          return (SomeMessage (MsgAcquire ImmutableTip Nothing))
 
         (SingIdle, _, 2, 10) -> do
-          leashed <- CBOR.decodeBool
-          return (SomeMessage (MsgAcquire ImmutableTip leashed))
+          leashed <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire ImmutableTip (Just (LeashID leashed))))
 
         (SingAcquiring, _, 1, 1) ->
           return (SomeMessage MsgAcquired)
@@ -209,7 +214,11 @@ codecLocalStateQuery version
           return (SomeMessage (MsgResult result))
 
         (SingAcquired, _, 1, 5) ->
-          return (SomeMessage MsgRelease)
+          return (SomeMessage $ MsgRelease Nothing)
+
+        (SingAcquired, _, 2, 5) -> do
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage $ MsgRelease (Just (LeashID leashId)))
 
         (SingAcquired, _, 2, 6) -> do
           pt <- decodePoint

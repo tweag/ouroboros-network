@@ -318,7 +318,12 @@ localStateQueryMessages =
       (Stateful.AnyMessage
         StateIdle
         (LocalStateQuery.MsgAcquire
-        (SpecificPoint (BlockPoint largeCBORBS))))
+        (SpecificPoint (BlockPoint largeCBORBS)) Nothing))
+  , AnyMessageWithResult
+      (Stateful.AnyMessage
+        StateIdle
+        (LocalStateQuery.MsgAcquire
+        (SpecificPoint (BlockPoint largeCBORBS)) (Just 2600)))
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateAcquiring
