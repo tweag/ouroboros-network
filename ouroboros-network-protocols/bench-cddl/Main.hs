@@ -347,7 +347,11 @@ localStateQueryMessages =
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateAcquired
-        LocalStateQuery.MsgRelease)
+        (LocalStateQuery.MsgRelease Nothing))
+  , AnyMessageWithResult
+      (Stateful.AnyMessage
+        StateAcquired
+        (LocalStateQuery.MsgRelease (Just 2600)))
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateAcquired
@@ -355,7 +359,11 @@ localStateQueryMessages =
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateIdle
-        LocalStateQuery.MsgDone)
+        (LocalStateQuery.MsgDone Nothing))
+  , AnyMessageWithResult
+      (Stateful.AnyMessage
+        StateIdle
+        (LocalStateQuery.MsgDone (Just 2600)))
   ]
   where
     largeCBORBS = Any (CBOR.TBytes largeBS)

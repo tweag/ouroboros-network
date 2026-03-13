@@ -162,9 +162,14 @@ codecLocalStateQuery version
            ++ "tip must be conditional on negotiating v16 of the "
            ++ "node-to-client protocol"
 
-    encode _ MsgDone =
+    encode _ (MsgDone Nothing) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 7
+
+    encode _ (MsgDone (Just (LeashID leashId))) =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 7
+     <> CBOR.encodeWord32 leashId
 
     decode :: forall s (st :: LocalStateQuery block point query).
               ActiveState st
@@ -231,7 +236,11 @@ codecLocalStateQuery version
           return (SomeMessage (MsgReAcquire ImmutableTip))
 
         (SingIdle, _, 1, 7) ->
-          return (SomeMessage MsgDone)
+          return (SomeMessage $ MsgDone Nothing)
+
+        (SingIdle, _, 2, 7) -> do
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage $ MsgDone (Just (LeashID leashId)))
 
         --
         -- failures per protocol state

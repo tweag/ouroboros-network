@@ -203,7 +203,8 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     -- | The client can terminate the protocol.
     --
     MsgDone
-      :: Message (LocalStateQuery block point query) StIdle StDone
+      :: Maybe LeashID -- ^ Optional leashing ID
+      -> Message (LocalStateQuery block point query) StIdle StDone
 
 
   type StateAgency StIdle              = ClientAgency
@@ -219,14 +220,14 @@ instance ( forall result. NFData (query result)
          , NFData point
          )
          => NFData (Message (LocalStateQuery block point query) from to) where
-  rnf (MsgAcquire mbPoint leashed)   = rnf mbPoint `seq` rnf leashed
+  rnf (MsgAcquire mbPoint leashId)   = rnf mbPoint `seq` rnf leashId
   rnf MsgAcquired            = ()
   rnf (MsgFailure af)        = rnf af
   rnf (MsgQuery qr)          = rnf qr
   rnf (MsgResult r)          = rwhnf r
-  rnf (MsgRelease lId)       = rnf lId
+  rnf (MsgRelease leashId)   = rnf leashId
   rnf (MsgReAcquire mbPoint) = rnf mbPoint
-  rnf MsgDone                = ()
+  rnf (MsgDone leashId)      = rnf leashId
 
 data AcquireFailure = AcquireFailurePointTooOld
                     | AcquireFailurePointNotOnChain
@@ -276,8 +277,10 @@ instance (ShowQuery query, Show point)
         showParen (p >= 11) $
         showString "MsgReAcquire " .
         showsPrec 11 pt
-      AnyMessage _f MsgDone ->
-        showString "MsgDone"
+      AnyMessage _f (MsgDone mLeashId) ->
+        showParen (p >= 11) $
+        showString "MsgDone" .
+        showsPrec 11 mLeashId
 
 
 type State :: LocalStateQuery block point query -> Type

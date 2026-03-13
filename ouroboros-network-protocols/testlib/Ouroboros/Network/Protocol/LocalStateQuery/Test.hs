@@ -339,7 +339,9 @@ instance ( Arbitrary point
     , Stateful.AnyMessage StateAcquired
       <$> (MsgReAcquire <$> arbitrary)
 
-    , pure (Stateful.AnyMessage StateIdle MsgDone)
+    , (\mLeashId ->
+        Stateful.AnyMessage StateIdle (MsgDone mLeashId))
+        <$> arbitrary
     ]
 
 instance ShowQuery Query where
@@ -372,8 +374,8 @@ instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) St
   (==) (Stateful.AnyMessage _ (MsgReAcquire tgt))
        (Stateful.AnyMessage _ (MsgReAcquire tgt')) = tgt == tgt'
 
-  (==) (Stateful.AnyMessage _ MsgDone)
-       (Stateful.AnyMessage _ MsgDone) = True
+  (==) (Stateful.AnyMessage _ (MsgDone mLeashId))
+       (Stateful.AnyMessage _ (MsgDone mLeashId')) = mLeashId == mLeashId' 
 
   _ == _ = False
 

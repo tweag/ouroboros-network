@@ -40,7 +40,7 @@ data ServerStIdle block point query m a = ServerStIdle {
                       -> Maybe LeashID
                       -> m (ServerStAcquiring block point query m a),
 
-       recvMsgDone    :: m a
+       recvMsgDone    :: Maybe LeashID -> m a
      }
 
 -- | In the 'StAcquiring' protocol state, the server has agency and must send
@@ -103,10 +103,10 @@ localStateQueryServerPeer (LocalStateQueryServer handler) =
       -> Server (LocalStateQuery block point query) StIdle State m a
     handleStIdle ServerStIdle{recvMsgAcquire, recvMsgDone} =
       Await $ \_ req -> case req of
-        MsgAcquire pt leashed -> ( Effect $ handleStAcquiring <$> recvMsgAcquire pt leashed
+        MsgAcquire pt leashId -> ( Effect $ handleStAcquiring <$> recvMsgAcquire pt leashId
                          , StateAcquiring
                          )
-        MsgDone -> ( Effect $ Done <$> recvMsgDone
+        MsgDone leashId -> ( Effect $ Done <$> recvMsgDone leashId
                    , StateDone
                    )
 

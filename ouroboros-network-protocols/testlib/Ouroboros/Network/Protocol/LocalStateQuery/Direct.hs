@@ -20,11 +20,11 @@ direct (LocalStateQueryClient mclient) (LocalStateQueryServer mserver) = do
       :: ClientStIdle block point query m a
       -> ServerStIdle block point query m b
       -> m (a, b)
-    directIdle (SendMsgAcquire tgt leashed client') ServerStIdle{recvMsgAcquire} = do
-      server' <- recvMsgAcquire tgt leashed
+    directIdle (SendMsgAcquire tgt leashId client') ServerStIdle{recvMsgAcquire} = do
+      server' <- recvMsgAcquire tgt leashId
       directAcquiring client' server'
-    directIdle (SendMsgDone a) ServerStIdle{recvMsgDone} = do
-      b <- recvMsgDone
+    directIdle (SendMsgDone leashId a) ServerStIdle{recvMsgDone} = do
+      b <- recvMsgDone leashId
       return (a, b)
 
     directAcquiring

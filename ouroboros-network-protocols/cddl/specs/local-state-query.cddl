@@ -34,6 +34,6 @@ msgRelease   = [5, ? word32]
 msgReAcquire = [6, base.point]
              / [9]
              / [11]
-lsqMsgDone   = [7]
+lsqMsgDone   = [7, ? word32]
 
 ;# import network.base as base
