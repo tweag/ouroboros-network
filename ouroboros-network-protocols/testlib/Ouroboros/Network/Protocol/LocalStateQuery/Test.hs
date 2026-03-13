@@ -306,7 +306,7 @@ newtype AnyMessageV7 block point query result = AnyMessageV7 {
   }
   deriving Show
 
-deriving instance Arbitrary LeashID
+deriving instance Arbitrary LeashId
 
 instance ( Arbitrary point
          , Arbitrary (query result)
@@ -332,9 +332,7 @@ instance ( Arbitrary point
                             (MsgResult result))
         <$> (arbitrary :: Gen (QueryWithResult query result))
 
-    , (\mLeashId ->
-        Stateful.AnyMessage StateAcquired (MsgRelease mLeashId))
-        <$> arbitrary
+    , pure $ Stateful.AnyMessage StateAcquired MsgRelease
 
     , Stateful.AnyMessage StateAcquired
       <$> (MsgReAcquire <$> arbitrary)
@@ -368,8 +366,8 @@ instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) St
          case (query, query') of
            (GetTheLedgerState, GetTheLedgerState) -> result == result'
 
-  (==) (Stateful.AnyMessage _ (MsgRelease mLeashId))
-       (Stateful.AnyMessage _ (MsgRelease mLeashId')) = mLeashId == mLeashId'
+  (==) (Stateful.AnyMessage _ MsgRelease)
+       (Stateful.AnyMessage _ MsgRelease) = True
 
   (==) (Stateful.AnyMessage _ (MsgReAcquire tgt))
        (Stateful.AnyMessage _ (MsgReAcquire tgt')) = tgt == tgt'

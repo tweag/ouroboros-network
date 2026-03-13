@@ -4,9 +4,7 @@ module Ouroboros.Network.Protocol.LocalStateQuery.Examples where
 
 import Ouroboros.Network.Protocol.LocalStateQuery.Client
 import Ouroboros.Network.Protocol.LocalStateQuery.Server
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure (..),
-           Target,
-           LeashID)
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure (..), Target, LeashId)
 
 
 --
@@ -21,39 +19,39 @@ import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure (..),
 localStateQueryClient
   :: forall block point query result m.
      Applicative m
-  => [(Target point, Maybe LeashID, query result)]
+  => [(Target point, Maybe LeashId, query result)]
   -> LocalStateQueryClient block point query m
-                           [(Target point, Maybe LeashID, Either AcquireFailure result)]
+                           [(Target point, Maybe LeashId, Either AcquireFailure result)]
 localStateQueryClient = LocalStateQueryClient . pure . goIdle []
   where
     goIdle
-      :: [(Target point, Maybe LeashID, Either AcquireFailure result)]  -- ^ Accumulator
-      -> [(Target point, Maybe LeashID, query result)]                  -- ^ Remainder
+      :: [(Target point, Maybe LeashId, Either AcquireFailure result)]  -- ^ Accumulator
+      -> [(Target point, Maybe LeashId, query result)]                  -- ^ Remainder
       -> ClientStIdle block point query m
-                      [(Target point, Maybe LeashID, Either AcquireFailure result)]
+                      [(Target point, Maybe LeashId, Either AcquireFailure result)]
     goIdle acc []               = SendMsgDone Nothing $ reverse acc
     goIdle acc ((tgt, leashId, q):ptqs') = SendMsgAcquire tgt leashId $
       goAcquiring acc tgt leashId q ptqs'
 
     goAcquiring
-      :: [(Target point, Maybe LeashID, Either AcquireFailure result)]  -- ^ Accumulator
+      :: [(Target point, Maybe LeashId, Either AcquireFailure result)]  -- ^ Accumulator
       -> Target point
-      -> Maybe LeashID
+      -> Maybe LeashId
       -> query result
-      -> [(Target point, Maybe LeashID, query result)]                  -- ^ Remainder
+      -> [(Target point, Maybe LeashId, query result)]                  -- ^ Remainder
       -> ClientStAcquiring block point query m
-                           [(Target point, Maybe LeashID, Either AcquireFailure result)]
+                           [(Target point, Maybe LeashId, Either AcquireFailure result)]
     goAcquiring acc pt leashId q ptqss' = ClientStAcquiring {
         recvMsgAcquired = pure $ goQuery q $ \r -> goAcquired ((pt, leashId, Right r):acc) ptqss'
       , recvMsgFailure  = \failure -> pure $ goIdle ((pt, leashId, Left failure):acc) ptqss'
       }
 
     goAcquired
-      :: [(Target point, Maybe LeashID, Either AcquireFailure result)]
-      -> [(Target point, Maybe LeashID, query result)]   -- ^ Remainder
+      :: [(Target point, Maybe LeashId, Either AcquireFailure result)]
+      -> [(Target point, Maybe LeashId, query result)]   -- ^ Remainder
       -> ClientStAcquired block point query m
-                          [(Target point, Maybe LeashID, Either AcquireFailure result)]
-    goAcquired acc [] = SendMsgRelease Nothing $ pure $ SendMsgDone Nothing $ reverse acc
+                          [(Target point, Maybe LeashId, Either AcquireFailure result)]
+    goAcquired acc [] = SendMsgRelease $ pure $ SendMsgDone Nothing $ reverse acc
     goAcquired acc ((tgt, leashId, qs):ptqss') = SendMsgReAcquire tgt $
       goAcquiring acc tgt leashId qs ptqss'
 
@@ -74,7 +72,7 @@ localStateQueryClient = LocalStateQueryClient . pure . goIdle []
 --
 localStateQueryServer
   :: forall block point query m state. Applicative m
-  => (Target point -> Maybe LeashID -> Either AcquireFailure state)
+  => (Target point -> Maybe LeashId -> Either AcquireFailure state)
   -> (forall result. state -> query result -> result)
   -> LocalStateQueryServer block point query m ()
 localStateQueryServer acquire answer =
@@ -86,15 +84,15 @@ localStateQueryServer acquire answer =
       , recvMsgDone = \_mLeashId -> pure ()
       }
 
-    goAcquiring :: Target point -> Maybe LeashID -> m (ServerStAcquiring block point query m ())
+    goAcquiring :: Target point -> Maybe LeashId -> m (ServerStAcquiring block point query m ())
     goAcquiring tgt leashId = pure $ case acquire tgt leashId of
       Left failure -> SendMsgFailure failure goIdle
       Right state  -> SendMsgAcquired $ goAcquired leashId state
 
-    goAcquired :: Maybe LeashID -> state -> ServerStAcquired block point query m ()
+    goAcquired :: Maybe LeashId -> state -> ServerStAcquired block point query m ()
     goAcquired leashId state = ServerStAcquired {
         recvMsgQuery     = \query ->
           pure $ SendMsgResult (answer state query) $ goAcquired leashId state
       , recvMsgReAcquire = flip goAcquiring leashId
-      , recvMsgRelease   = \_mLeashId -> pure goIdle
+      , recvMsgRelease   = pure goIdle
       }

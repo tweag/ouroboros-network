@@ -37,10 +37,10 @@ newtype LocalStateQueryServer block point (query :: Type -> Type) m a = LocalSta
 --
 data ServerStIdle block point query m a = ServerStIdle {
        recvMsgAcquire :: Target point
-                      -> Maybe LeashID
+                      -> Maybe LeashId
                       -> m (ServerStAcquiring block point query m a),
 
-       recvMsgDone    :: Maybe LeashID -> m a
+       recvMsgDone    :: Maybe LeashId -> m a
      }
 
 -- | In the 'StAcquiring' protocol state, the server has agency and must send
@@ -74,8 +74,7 @@ data ServerStAcquired block point query m a = ServerStAcquired {
       recvMsgReAcquire :: Target point
                        -> m (ServerStAcquiring block point query m a),
 
-      recvMsgRelease   :: Maybe LeashID
-                       -> m (ServerStIdle      block point query m a)
+      recvMsgRelease   :: m (ServerStIdle      block point query m a)
     }
 
 -- | In the 'StQuerying' protocol state, the server has agency and must send:
@@ -134,7 +133,7 @@ localStateQueryServerPeer (LocalStateQueryServer handler) =
         MsgReAcquire pt     -> ( Effect $ handleStAcquiring      <$> recvMsgReAcquire pt
                                , StateAcquiring
                                )
-        MsgRelease mLeashId -> ( Effect $ handleStIdle           <$> recvMsgRelease mLeashId
+        MsgRelease          -> ( Effect $ handleStIdle           <$> recvMsgRelease
                                , StateIdle
                                )
 

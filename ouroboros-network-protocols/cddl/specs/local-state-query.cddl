@@ -20,20 +20,22 @@ failure      = acquireFailurePointTooOld
              / acquireFailurePointNotOnChain
              / acquireFailureStateIsBusy
 
+leashId      = word32
+
 query        = any
 result       = any
 
-msgAcquire   = [0, point, ? word32]
-             / [8, ? word32]
-             / [10, ? word32]
+msgAcquire   = [0, point, ? leashId]
+             / [8, ? leashId]
+             / [10, ? leashId]
 msgAcquired  = [1]
 msgFailure   = [2, failure]
 msgQuery     = [3, query]
 msgResult    = [4, result]
-msgRelease   = [5, ? word32]
+msgRelease   = [5]
 msgReAcquire = [6, base.point]
              / [9]
              / [11]
-lsqMsgDone   = [7, ? word32]
+lsqMsgDone   = [7, ? leashId]
 
 ;# import network.base as base

@@ -133,7 +133,7 @@ data Target point = -- | The tip of the volatile chain
   deriving (Eq, Foldable, Functor, Generic, Ord, Show, Traversable, NFData)
 
 
-newtype LeashID = LeashID Word32
+newtype LeashId = LeashId Word32
   deriving stock (Show)
   -- TODO: anything else?
   deriving newtype (Eq, Ord, NFData, Num, Read, NoThunks)
@@ -151,7 +151,7 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     --
     MsgAcquire
       :: Target point
-      -> Maybe LeashID -- ^ Optional leashing ID
+      -> Maybe LeashId -- ^ Optional leashing ID
       -> Message (LocalStateQuery block point query) StIdle StAcquiring
 
     -- | The server can confirm that it has the state at the requested point.
@@ -179,14 +179,12 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
       -> Message (LocalStateQuery block point query) (StQuerying result) StAcquired
 
     -- | The client can instruct the server to release the state. This lets
-    -- the server free resources. If the LeashID is set, it means that this client's
+    -- the server free resources. If the LeashId is set, it means that this client's
     -- leash should be removed, otherwise the node should continue to be leashed
     -- for later reconnection.
     --
     MsgRelease
-        -- TODO: Should there be a backwards compatible pattern and a new one for leashing?
-      :: Maybe LeashID -- If this is set, then it means the client wishes to UNleash
-      -> Message (LocalStateQuery block point query) StAcquired StIdle
+      :: Message (LocalStateQuery block point query) StAcquired StIdle
 
     -- | This is like 'MsgAcquire' but for when the client already has a
     -- state. By moving to another state directly without a 'MsgRelease' it
@@ -203,7 +201,7 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     -- | The client can terminate the protocol.
     --
     MsgDone
-      :: Maybe LeashID -- ^ Optional leashing ID
+      :: Maybe LeashId -- ^ Optional leashing ID
       -> Message (LocalStateQuery block point query) StIdle StDone
 
 
@@ -225,13 +223,17 @@ instance ( forall result. NFData (query result)
   rnf (MsgFailure af)        = rnf af
   rnf (MsgQuery qr)          = rnf qr
   rnf (MsgResult r)          = rwhnf r
-  rnf (MsgRelease leashId)   = rnf leashId
+  rnf MsgRelease             = ()
   rnf (MsgReAcquire mbPoint) = rnf mbPoint
   rnf (MsgDone leashId)      = rnf leashId
 
 data AcquireFailure = AcquireFailurePointTooOld
                     | AcquireFailurePointNotOnChain
                     | AcquireFailurePointStateIsBusy
+  deriving (Eq, Enum, Show, Generic, NFData)
+
+data LeashAction = RetainLeash 
+                 | ReleaseLeash 
   deriving (Eq, Enum, Show, Generic, NFData)
 
 
@@ -269,10 +271,8 @@ instance (ShowQuery query, Show point)
         showParen (p >= 11) $
         showString "MsgResult " .
         showParen True (showString (showResult query result))
-      AnyMessage _f (MsgRelease mLeashId) ->
-        showParen (p >= 11) $
-        showString "MsgRelease" .
-        showsPrec 11 mLeashId
+      AnyMessage _f MsgRelease ->
+        showString "MsgRelease"
       AnyMessage _f (MsgReAcquire pt) ->
         showParen (p >= 11) $
         showString "MsgReAcquire " .

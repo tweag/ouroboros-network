@@ -82,7 +82,7 @@ codecLocalStateQuery version
      <> CBOR.encodeWord 0
      <> encodePoint pt
 
-    encode _ (MsgAcquire (SpecificPoint pt) (Just (LeashID leashId))) =
+    encode _ (MsgAcquire (SpecificPoint pt) (Just (LeashId leashId))) =
         CBOR.encodeListLen 3
      <> CBOR.encodeWord 0
      <> encodePoint pt
@@ -92,7 +92,7 @@ codecLocalStateQuery version
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 8
 
-    encode _ (MsgAcquire VolatileTip (Just (LeashID leashId))) =
+    encode _ (MsgAcquire VolatileTip (Just (LeashId leashId))) =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 8
      <> CBOR.encodeWord32 leashId
@@ -106,7 +106,7 @@ codecLocalStateQuery version
            ++ "must be conditional on negotiating v16 of the node-to-client "
            ++ "protocol"
 
-    encode _ (MsgAcquire ImmutableTip (Just (LeashID leashId)))
+    encode _ (MsgAcquire ImmutableTip (Just (LeashId leashId)))
       | canAcquireImmutable =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 10
@@ -135,14 +135,9 @@ codecLocalStateQuery version
      <> CBOR.encodeWord 4
      <> encodeResult query result
 
-    encode _ (MsgRelease Nothing) =
+    encode _ MsgRelease =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 5
-
-    encode _ (MsgRelease (Just (LeashID leashId))) =
-        CBOR.encodeListLen 2
-     <> CBOR.encodeWord 5
-     <> CBOR.encodeWord32 leashId
 
     encode _ (MsgReAcquire (SpecificPoint pt)) =
         CBOR.encodeListLen 2
@@ -166,7 +161,7 @@ codecLocalStateQuery version
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 7
 
-    encode _ (MsgDone (Just (LeashID leashId))) =
+    encode _ (MsgDone (Just (LeashId leashId))) =
         CBOR.encodeListLen 2
      <> CBOR.encodeWord 7
      <> CBOR.encodeWord32 leashId
@@ -187,21 +182,21 @@ codecLocalStateQuery version
         (SingIdle, _, 3, 0) -> do
           pt <- decodePoint
           leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire (SpecificPoint pt) (Just (LeashID leashed))))
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) (Just (LeashId leashed))))
 
         (SingIdle, _, 1, 8) -> do
           return (SomeMessage (MsgAcquire VolatileTip Nothing))
 
         (SingIdle, _, 2, 8) -> do
           leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire VolatileTip (Just (LeashID leashed))))
+          return (SomeMessage (MsgAcquire VolatileTip (Just (LeashId leashed))))
 
         (SingIdle, _, 1, 10) -> do
           return (SomeMessage (MsgAcquire ImmutableTip Nothing))
 
         (SingIdle, _, 2, 10) -> do
           leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire ImmutableTip (Just (LeashID leashed))))
+          return (SomeMessage (MsgAcquire ImmutableTip (Just (LeashId leashed))))
 
         (SingAcquiring, _, 1, 1) ->
           return (SomeMessage MsgAcquired)
@@ -219,11 +214,7 @@ codecLocalStateQuery version
           return (SomeMessage (MsgResult result))
 
         (SingAcquired, _, 1, 5) ->
-          return (SomeMessage $ MsgRelease Nothing)
-
-        (SingAcquired, _, 2, 5) -> do
-          leashId <- CBOR.decodeWord32
-          return (SomeMessage $ MsgRelease (Just (LeashID leashId)))
+          return (SomeMessage $ MsgRelease)
 
         (SingAcquired, _, 2, 6) -> do
           pt <- decodePoint
@@ -240,7 +231,7 @@ codecLocalStateQuery version
 
         (SingIdle, _, 2, 7) -> do
           leashId <- CBOR.decodeWord32
-          return (SomeMessage $ MsgDone (Just (LeashID leashId)))
+          return (SomeMessage $ MsgDone (Just (LeashId leashId)))
 
         --
         -- failures per protocol state

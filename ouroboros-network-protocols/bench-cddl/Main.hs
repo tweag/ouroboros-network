@@ -347,11 +347,7 @@ localStateQueryMessages =
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateAcquired
-        (LocalStateQuery.MsgRelease Nothing))
-  , AnyMessageWithResult
-      (Stateful.AnyMessage
-        StateAcquired
-        (LocalStateQuery.MsgRelease (Just 2600)))
+        LocalStateQuery.MsgRelease)
   , AnyMessageWithResult
       (Stateful.AnyMessage
         StateAcquired
