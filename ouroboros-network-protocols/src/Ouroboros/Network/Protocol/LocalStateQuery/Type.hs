@@ -135,7 +135,6 @@ data Target point = -- | The tip of the volatile chain
 
 newtype LeashId = LeashId Word32
   deriving stock (Show)
-  -- TODO: anything else?
   deriving newtype (Eq, Ord, NFData, Num, Read, NoThunks)
 
 instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Type -> Type)) where
@@ -184,7 +183,8 @@ instance Protocol (LocalStateQuery (block :: Type) (point :: Type) (query :: Typ
     -- for later reconnection.
     --
     MsgRelease
-      :: Message (LocalStateQuery block point query) StAcquired StIdle
+      :: Bool
+      -> Message (LocalStateQuery block point query) StAcquired StIdle
 
     -- | This is like 'MsgAcquire' but for when the client already has a
     -- state. By moving to another state directly without a 'MsgRelease' it
@@ -223,7 +223,7 @@ instance ( forall result. NFData (query result)
   rnf (MsgFailure af)        = rnf af
   rnf (MsgQuery qr)          = rnf qr
   rnf (MsgResult r)          = rwhnf r
-  rnf MsgRelease             = ()
+  rnf (MsgRelease unleash)   = rnf unleash 
   rnf (MsgReAcquire mbPoint) = rnf mbPoint
   rnf (MsgDone leashId)      = rnf leashId
 
@@ -256,6 +256,7 @@ instance (ShowQuery query, Show point)
         showParen (p >= 11) $
         showString "MsgAcquire " .
         showsPrec 11 pt .
+        showString " " .
         showsPrec 11 leashed
       AnyMessage _f MsgAcquired ->
         showString "MsgAcquired"
@@ -271,8 +272,10 @@ instance (ShowQuery query, Show point)
         showParen (p >= 11) $
         showString "MsgResult " .
         showParen True (showString (showResult query result))
-      AnyMessage _f MsgRelease ->
-        showString "MsgRelease"
+      AnyMessage _f (MsgRelease unleash) ->
+        showParen (p >= 11) $
+        showString "MsgRelease " .
+        showsPrec 11 unleash
       AnyMessage _f (MsgReAcquire pt) ->
         showParen (p >= 11) $
         showString "MsgReAcquire " .

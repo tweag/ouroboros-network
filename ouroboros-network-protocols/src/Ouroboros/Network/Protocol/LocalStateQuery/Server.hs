@@ -74,7 +74,8 @@ data ServerStAcquired block point query m a = ServerStAcquired {
       recvMsgReAcquire :: Target point
                        -> m (ServerStAcquiring block point query m a),
 
-      recvMsgRelease   :: m (ServerStIdle      block point query m a)
+      recvMsgRelease   :: Bool
+                       -> m (ServerStIdle      block point query m a)
     }
 
 -- | In the 'StQuerying' protocol state, the server has agency and must send:
@@ -133,7 +134,7 @@ localStateQueryServerPeer (LocalStateQueryServer handler) =
         MsgReAcquire pt     -> ( Effect $ handleStAcquiring      <$> recvMsgReAcquire pt
                                , StateAcquiring
                                )
-        MsgRelease          -> ( Effect $ handleStIdle           <$> recvMsgRelease
+        (MsgRelease unleash) -> ( Effect $ handleStIdle           <$> recvMsgRelease unleash
                                , StateIdle
                                )
 

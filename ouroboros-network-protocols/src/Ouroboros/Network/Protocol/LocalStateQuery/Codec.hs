@@ -135,9 +135,14 @@ codecLocalStateQuery version
      <> CBOR.encodeWord 4
      <> encodeResult query result
 
-    encode _ MsgRelease =
+    encode _ (MsgRelease False) =
         CBOR.encodeListLen 1
      <> CBOR.encodeWord 5
+
+    encode _ (MsgRelease True) =
+        CBOR.encodeListLen 2
+     <> CBOR.encodeWord 5
+     <> CBOR.encodeBool True
 
     encode _ (MsgReAcquire (SpecificPoint pt)) =
         CBOR.encodeListLen 2
@@ -181,22 +186,22 @@ codecLocalStateQuery version
 
         (SingIdle, _, 3, 0) -> do
           pt <- decodePoint
-          leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire (SpecificPoint pt) (Just (LeashId leashed))))
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire (SpecificPoint pt) (Just (LeashId leashId))))
 
         (SingIdle, _, 1, 8) -> do
           return (SomeMessage (MsgAcquire VolatileTip Nothing))
 
         (SingIdle, _, 2, 8) -> do
-          leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire VolatileTip (Just (LeashId leashed))))
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire VolatileTip (Just (LeashId leashId))))
 
         (SingIdle, _, 1, 10) -> do
           return (SomeMessage (MsgAcquire ImmutableTip Nothing))
 
         (SingIdle, _, 2, 10) -> do
-          leashed <- CBOR.decodeWord32
-          return (SomeMessage (MsgAcquire ImmutableTip (Just (LeashId leashed))))
+          leashId <- CBOR.decodeWord32
+          return (SomeMessage (MsgAcquire ImmutableTip (Just (LeashId leashId))))
 
         (SingAcquiring, _, 1, 1) ->
           return (SomeMessage MsgAcquired)
@@ -214,7 +219,11 @@ codecLocalStateQuery version
           return (SomeMessage (MsgResult result))
 
         (SingAcquired, _, 1, 5) ->
-          return (SomeMessage $ MsgRelease)
+          return (SomeMessage $ MsgRelease False)
+
+        (SingAcquired, _, 2, 5) -> do
+          unleash <- CBOR.decodeBool 
+          return (SomeMessage $ MsgRelease unleash)
 
         (SingAcquired, _, 2, 6) -> do
           pt <- decodePoint

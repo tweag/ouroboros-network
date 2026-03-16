@@ -332,7 +332,8 @@ instance ( Arbitrary point
                             (MsgResult result))
         <$> (arbitrary :: Gen (QueryWithResult query result))
 
-    , pure $ Stateful.AnyMessage StateAcquired MsgRelease
+    , pure $ Stateful.AnyMessage StateAcquired (MsgRelease False)
+    , pure $ Stateful.AnyMessage StateAcquired (MsgRelease True)
 
     , Stateful.AnyMessage StateAcquired
       <$> (MsgReAcquire <$> arbitrary)
@@ -366,8 +367,8 @@ instance  Eq (Stateful.AnyMessage (LocalStateQuery Block (Point Block) Query) St
          case (query, query') of
            (GetTheLedgerState, GetTheLedgerState) -> result == result'
 
-  (==) (Stateful.AnyMessage _ MsgRelease)
-       (Stateful.AnyMessage _ MsgRelease) = True
+  (==) (Stateful.AnyMessage _ (MsgRelease unleash))
+       (Stateful.AnyMessage _ (MsgRelease unleash')) = unleash == unleash' 
 
   (==) (Stateful.AnyMessage _ (MsgReAcquire tgt))
        (Stateful.AnyMessage _ (MsgReAcquire tgt')) = tgt == tgt'

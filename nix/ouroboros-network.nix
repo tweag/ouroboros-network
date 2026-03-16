@@ -47,17 +47,18 @@ let
     index-sha256 = "sha256-fmnSRF68/UIQYzzdmNs3UT0cbYhn9d5nlhb3BnVXe48=";
     compiler-nix-name = lib.mkDefault defaultCompiler;
     cabalProjectLocal =
-      if pkgs.stdenv.hostPlatform.isWindows
-      then lib.readFile ../scripts/ci/cabal.project.local.Windows
-      else lib.readFile ../scripts/ci/cabal.project.local.Linux;
+#      if pkgs.stdenv.hostPlatform.isWindows
+#      then lib.readFile ../scripts/ci/cabal.project.local.Windows
+      #else
+      lib.readFile ../scripts/ci/cabal.project.local.Linux;
 
     #
     # CROSS COMPILATION
     # -----------------
 
     # we also want cross compilation to windows on linux (and only with default compiler).
-    crossPlatforms =
-      p: lib.optionals (pkgs.stdenv.hostPlatform.isLinux && config.compiler-nix-name == crossGHCVersion) [ p.ucrt64 ];
+    crossPlatforms = p: [];
+#      p: lib.optionals (pkgs.stdenv.hostPlatform.isLinux && config.compiler-nix-name == crossGHCVersion) [ p.ucrt64 ];
 
     #
     # VARIANTS

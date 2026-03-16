@@ -51,7 +51,7 @@ localStateQueryClient = LocalStateQueryClient . pure . goIdle []
       -> [(Target point, Maybe LeashId, query result)]   -- ^ Remainder
       -> ClientStAcquired block point query m
                           [(Target point, Maybe LeashId, Either AcquireFailure result)]
-    goAcquired acc [] = SendMsgRelease $ pure $ SendMsgDone Nothing $ reverse acc
+    goAcquired acc [] = SendMsgRelease False $ pure $ SendMsgDone Nothing $ reverse acc
     goAcquired acc ((tgt, leashId, qs):ptqss') = SendMsgReAcquire tgt $
       goAcquiring acc tgt leashId qs ptqss'
 
@@ -94,5 +94,5 @@ localStateQueryServer acquire answer =
         recvMsgQuery     = \query ->
           pure $ SendMsgResult (answer state query) $ goAcquired leashId state
       , recvMsgReAcquire = flip goAcquiring leashId
-      , recvMsgRelease   = pure goIdle
+      , recvMsgRelease = \_unleash -> pure goIdle
       }
