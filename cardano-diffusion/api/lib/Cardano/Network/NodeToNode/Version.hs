@@ -18,7 +18,7 @@ module Cardano.Network.NodeToNode.Version
   ) where
 
 import Data.Set (Set)
-import Data.Set qualified as Set
+-- import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 
@@ -151,10 +151,12 @@ isValidNtnVersionDataForVersion version ntnData =
 
 -- | Determine the local node's Peras support status based on feature flags and version.
 getLocalPerasSupport :: Set CardanoFeatureFlag -> NodeToNodeVersion -> PerasSupport
-getLocalPerasSupport featureFlags v =
+getLocalPerasSupport _featureFlags _v = PerasSupported
+{-
   if Set.member PerasFlag featureFlags && v >= NodeToNodeV_16
     then PerasSupported
     else PerasUnsupported
+-}
 
 -- | Beware, encoding an invalid NodeToNodeVersionData (see `isValidNtnVersionDataForVersion`) for
 -- a given version will fail if a future field is set to a value other than its default forwards
