@@ -162,12 +162,10 @@ getLocalPerasSupport _featureFlags _v = PerasSupported
 -- a given version will fail if a future field is set to a value other than its default forwards
 -- compatibility one. This way `encodeTerm` and `decodeTerm` are only inverses for valid data.
 nodeToNodeCodecCBORTerm :: NodeToNodeVersion -> CodecCBORTerm Text NodeToNodeVersionData
-nodeToNodeCodecCBORTerm version = CodecCBORTerm { encodeTerm = encodeTerm, decodeTerm = decodeTerm }
+nodeToNodeCodecCBORTerm _version = CodecCBORTerm { encodeTerm = encodeTerm, decodeTerm = decodeTerm }
   where
     encodeTerm :: NodeToNodeVersionData -> CBOR.Term
-    encodeTerm ntnData@NodeToNodeVersionData{ networkMagic, diffusionMode, peerSharing, query, perasSupport }
-      | not (isValidNtnVersionDataForVersion version ntnData) = error "perasSupport should be PerasUnsupported for versions strictly before NodeToNodeV_16"
-      | otherwise =
+    encodeTerm _ntnData@NodeToNodeVersionData{ networkMagic, diffusionMode, peerSharing, query } =
         CBOR.TList $
              [ CBOR.TInt (fromIntegral $ unNetworkMagic networkMagic)
              , CBOR.TBool (case diffusionMode of
@@ -177,9 +175,6 @@ nodeToNodeCodecCBORTerm version = CodecCBORTerm { encodeTerm = encodeTerm, decod
                            PeerSharingDisabled -> 0
                            PeerSharingEnabled  -> 1)
              , CBOR.TBool query
-             ]
-          ++ [CBOR.TBool (perasSupportToBool perasSupport)
-             | version >= NodeToNodeV_16
              ]
 
     decodeTerm :: CBOR.Term -> Either Text NodeToNodeVersionData
@@ -208,13 +203,7 @@ nodeToNodeCodecCBORTerm version = CodecCBORTerm { encodeTerm = encodeTerm, decod
 
             decodeQuery = pure
 
-            decodePerasSupportOptional = \case
-              []                        | version <  NodeToNodeV_16 -> pure PerasUnsupported
-              [CBOR.TBool perasSupport] | version >= NodeToNodeV_16 -> pure $
-                if perasSupport
-                  then PerasSupported
-                  else PerasUnsupported
-              l -> err $ "invalid encoding for perasSupport given the version " <> show version <> ": " <> show l
+            decodePerasSupportOptional _ = pure PerasSupported
 
       other -> err $ "unexpected encoding when decoding NodeToNodeVersionData: " <> show other
 
