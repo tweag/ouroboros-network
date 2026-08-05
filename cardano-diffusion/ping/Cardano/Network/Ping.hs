@@ -25,6 +25,7 @@ module Cardano.Network.Ping
   , pingClient
     -- * Options and arguments
   , PingOpts (..)
+  , HashType (..)
   , Stage (..)
   , ResolvedSRVOrFilePath (..)
   , Address (IP)
