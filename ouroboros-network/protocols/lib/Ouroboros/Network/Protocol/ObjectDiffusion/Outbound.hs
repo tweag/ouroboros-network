@@ -50,20 +50,23 @@ data OutboundStIdle objectId object m a = OutboundStIdle {
                                  SingBlockingStyle blocking
                               -> NumObjectIdsAck
                               -> NumObjectIdsReq
-                              -> m (OutboundStObjectIds blocking objectId object m a),
+                              -> m (OutboundStObjectIds blocking 'StCanAwait objectId object m a),
       recvMsgRequestObjects   :: [objectId]
                               -> m (OutboundStObjects objectId object m a),
       recvMsgDone             :: m a
     }
 
-data OutboundStObjectIds blocking objectId object m a where
+data OutboundStObjectIds blocking phase objectId object m a where
   SendMsgReplyObjectIds
     :: BlockingReplyList blocking objectId
     -> OutboundStIdle objectId object m a
-    -> OutboundStObjectIds blocking objectId object m a
+    -> OutboundStObjectIds blocking phase objectId object m a
+  SendMsgAwaitReply
+    :: m (OutboundStObjectIds 'StBlocking 'StMustReply objectId object m a)
+    -> OutboundStObjectIds 'StBlocking 'StCanAwait objectId object m a
   SendMsgServerIdle
     :: OutboundStIdle objectId object m a
-    -> OutboundStObjectIds 'StBlocking objectId object m a
+    -> OutboundStObjectIds 'StBlocking 'StMustReply objectId object m a
 
 data OutboundStObjects objectId object m a where
   SendMsgReplyObjects
@@ -89,11 +92,17 @@ objectDiffusionOutboundPeer (ObjectDiffusionOutbound outboundSt) =
         MsgRequestObjectIds blocking ackNo reqNo -> Effect $ do
           reply <- recvMsgRequestObjectIds blocking ackNo reqNo
           case reply of
-            SendMsgServerIdle k ->
+            SendMsgAwaitReply waitForReply ->
               return $
                 Yield
-                  MsgServerIdle
-                  (run k)
+                  MsgAwaitReply
+                  (Effect $ do
+                    finalReply <- waitForReply
+                    pure $ case finalReply of
+                      SendMsgServerIdle k ->
+                        Yield MsgServerIdle (run k)
+                      SendMsgReplyObjectIds objectIds k ->
+                        Yield (MsgReplyObjectIds objectIds) (run k))
             SendMsgReplyObjectIds objectIds k ->
               -- TODO: investigate why GHC cannot infer `SingI`; it used to in
               -- `coot/typed-protocols-rewrite` branch
