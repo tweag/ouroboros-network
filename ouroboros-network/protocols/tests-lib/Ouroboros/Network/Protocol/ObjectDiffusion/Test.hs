@@ -111,11 +111,8 @@ newtype Object = Object { getObjectId :: ObjectId }
 instance ShowProxy Object where
     showProxy _ = "Object"
 
-newtype ObjectId = ObjectId (Maybe Word64)
-  deriving (Eq, Ord, Show, Serialise, Generic, NFData)
-
-instance Arbitrary ObjectId where
-  arbitrary = ObjectId <$> arbitrary
+newtype ObjectId = ObjectId Word64
+  deriving (Eq, Ord, Show, Arbitrary, Serialise, Generic, NFData)
 
 instance ShowProxy ObjectId where
     showProxy _ = "ObjectId"
@@ -128,31 +125,53 @@ instance (Arbitrary objectId, Arbitrary object)
   arbitrary = oneof
     [ pure $ AnyMessage MsgInit
     , AnyMessage
-        <$> ( MsgRequestObjectIds SingBlocking
+        <$> ( MsgRequestObjectIds RequestObjectIdsBlocking
             <$> arbitrary
             <*> arbitrary
             )
 
     , AnyMessage
-        <$> ( MsgRequestObjectIds SingNonBlocking
+        <$> ( MsgRequestObjectIds RequestObjectIdsNonBlocking
             <$> arbitrary
             <*> arbitrary
             )
 
-    , AnyMessage
-        <$> MsgReplyObjectIds
-        <$> ( BlockingReply
-            . NonEmpty.fromList
-            . QC.getNonEmpty
+    , ( \objectIds ->
+          AnyMessage
+            ( MsgReplyObjectIds (BlockingReply objectIds)
+                :: Message
+                    (ObjectDiffusion objectId object)
+                    (StObjectIds ('StObjectIdsBlocking 'StCanAwait))
+                    StIdle
             )
-        <$> arbitrary
+      )
+        <$> (NonEmpty.fromList . QC.getNonEmpty <$> arbitrary)
 
-    , AnyMessage
-        <$> MsgReplyObjectIds
-        <$> NonBlockingReply
+    , ( \objectIds ->
+          AnyMessage
+            ( MsgReplyObjectIds (BlockingReply objectIds)
+                :: Message
+                    (ObjectDiffusion objectId object)
+                    (StObjectIds ('StObjectIdsBlocking 'StMustReply))
+                    StIdle
+            )
+      )
+        <$> (NonEmpty.fromList . QC.getNonEmpty <$> arbitrary)
+
+    , ( \objectIds ->
+          AnyMessage
+            ( MsgReplyObjectIds (NonBlockingReply objectIds)
+                :: Message
+                    (ObjectDiffusion objectId object)
+                    (StObjectIds 'StObjectIdsNonBlocking)
+                    StIdle
+            )
+      )
         <$> arbitrary
 
     , pure $ AnyMessage MsgServerIdle
+
+    , pure $ AnyMessage MsgAwaitReply
 
     , AnyMessage
         <$> MsgRequestObjects
@@ -172,12 +191,12 @@ instance (Eq objectId, Eq object)
   (==) (AnyMessage MsgInit)
        (AnyMessage MsgInit) = True
 
-  (==) (AnyMessage (MsgRequestObjectIds SingBlocking ackNo  reqNo))
-       (AnyMessage (MsgRequestObjectIds SingBlocking ackNo' reqNo')) =
+  (==) (AnyMessage (MsgRequestObjectIds RequestObjectIdsBlocking ackNo  reqNo))
+       (AnyMessage (MsgRequestObjectIds RequestObjectIdsBlocking ackNo' reqNo')) =
     (ackNo, reqNo) == (ackNo', reqNo')
 
-  (==) (AnyMessage (MsgRequestObjectIds SingNonBlocking ackNo  reqNo))
-       (AnyMessage (MsgRequestObjectIds SingNonBlocking ackNo' reqNo')) =
+  (==) (AnyMessage (MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo  reqNo))
+       (AnyMessage (MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo' reqNo')) =
     (ackNo, reqNo) == (ackNo', reqNo')
 
   (==) (AnyMessage (MsgReplyObjectIds (BlockingReply objectIds)))
@@ -190,6 +209,9 @@ instance (Eq objectId, Eq object)
 
   (==) (AnyMessage MsgServerIdle)
        (AnyMessage MsgServerIdle) = True
+
+  (==) (AnyMessage MsgAwaitReply)
+       (AnyMessage MsgAwaitReply) = True
 
   (==) (AnyMessage (MsgRequestObjects objectIds))
        (AnyMessage (MsgRequestObjects objectIds')) = objectIds == objectIds'
@@ -266,6 +288,7 @@ labelMsg (AnyMessage msg) =
            MsgInit                -> "MsgInit"
            MsgRequestObjectIds {} -> "MsgRequestObjectIds"
            MsgReplyObjectIds as   -> "MsgReplyObjectIds " ++ renderRanges 3 (length as)
+           MsgAwaitReply          -> "MsgAwaitReply"
            MsgServerIdle          -> "MsgServerIdle"
            MsgRequestObjects as   -> "MsgRequestObjects " ++ renderRanges 3 (length as)
            MsgReplyObjects as     -> "MsgReplyObjects "   ++ renderRanges 3 (length as)
@@ -302,7 +325,8 @@ positiveWord16ToNat :: ChannelSize -> Natural
 positiveWord16ToNat (Positive (Small n)) = fromIntegral n
 
 testInboundPipelined
-  :: Tracer m (TraceObjectDiffusionTestImplem ObjectId Object)
+  :: Applicative m
+  => Tracer m (TraceObjectDiffusionTestImplem ObjectId Object)
   -> ObjectDiffusionTestParams
   -> ObjectDiffusionInboundPipelined ObjectId Object m [Object]
 testInboundPipelined
