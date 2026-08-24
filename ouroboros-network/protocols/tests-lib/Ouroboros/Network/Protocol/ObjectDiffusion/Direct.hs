@@ -31,15 +31,22 @@ directPipelined (ObjectDiffusionOutbound mOutbound)
                  -> InboundStIdle n objectId object m b
                  -> OutboundStIdle  objectId object m a
                  -> m b
-    directSender q (SendMsgRequestObjectIdsBlocking ackNo reqNo inboundNext inboundIdle)
+    directSender q (SendMsgRequestObjectIdsBlocking ackNo reqNo inboundAwait inboundNext inboundIdle)
                    OutboundStIdle{recvMsgRequestObjectIds} = do
       reply <- recvMsgRequestObjectIds SingBlocking ackNo reqNo
       case reply of
         SendMsgReplyObjectIds (BlockingReply objectIds) outbound' -> do
           let inbound' = inboundNext objectIds
           directSender q inbound' outbound'
-        SendMsgServerIdle outbound' ->
-          directSender q inboundIdle outbound'
+        SendMsgAwaitReply waitForReply -> do
+          inboundAwait
+          finalReply <- waitForReply
+          case finalReply of
+            SendMsgReplyObjectIds (BlockingReply objectIds) outbound' -> do
+              let inbound' = inboundNext objectIds
+              directSender q inbound' outbound'
+            SendMsgServerIdle outbound' ->
+              directSender q inboundIdle outbound'
 
     directSender q (SendMsgRequestObjectIdsPipelined ackNo reqNo inbound')
                    OutboundStIdle{recvMsgRequestObjectIds} = do

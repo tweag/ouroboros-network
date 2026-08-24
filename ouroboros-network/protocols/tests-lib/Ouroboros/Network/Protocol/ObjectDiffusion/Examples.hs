@@ -19,7 +19,8 @@ import Network.TypedProtocol.Core
 import Ouroboros.Network.Protocol.ObjectDiffusion.Inbound
 import Ouroboros.Network.Protocol.ObjectDiffusion.Outbound
 import Ouroboros.Network.Protocol.ObjectDiffusion.Type (BlockingReplyList (..),
-           NumObjectIdsAck (..), NumObjectIdsReq (..), SingBlockingStyle (..))
+           NumObjectIdsAck (..), NumObjectIdsReq (..), SingBlockingStyle (..),
+           StObjectIdsKind (..))
 
 import Control.Exception (assert)
 import Control.Monad (when)
@@ -87,7 +88,7 @@ testObjectDiffusionOutbound tracer objectId maxUnacked =
                                      SingBlockingStyle blocking
                                   -> NumObjectIdsAck
                                   -> NumObjectIdsReq
-                                  -> m (OutboundStObjectIds blocking objectId object m ())
+                                  -> m (OutboundStObjectIds blocking 'StCanAwait objectId object m ())
           recvMsgRequestObjectIds blocking ackNo reqNo = do
             traceWith tracer $
               EventRecvMsgRequestObjectIds
@@ -127,8 +128,9 @@ testObjectDiffusionOutbound tracer objectId maxUnacked =
 
             return $! case (blocking, unackedExtra) of
               (SingBlocking, []) ->
-                SendMsgServerIdle
-                  (outboundIdle unackedSeq'' unackedMap'' remainingObjects')
+                SendMsgAwaitReply $ pure $
+                  SendMsgServerIdle
+                    (outboundIdle unackedSeq'' unackedMap'' remainingObjects')
 
               (SingBlocking, obj : objs) ->
                 SendMsgReplyObjectIds
@@ -182,7 +184,7 @@ initialInboundState = InboundState 0 Seq.empty Set.empty Map.empty 0
 
 testObjectDiffusionInbound
   :: forall objectId object m.
-     (Ord objectId)
+     (Ord objectId, Applicative m)
   => Tracer m (TraceObjectDiffusionTestImplem objectId object)
   -> (object -> objectId)
   -> Word16  -- ^ Maximum number of unacknowledged object IDs allowed
@@ -221,6 +223,7 @@ testObjectDiffusionInbound
         SendMsgRequestObjectIdsBlocking
           (numObjectsToAcknowledge st)
           numObjectIdsToRequest
+          (pure ())
           (handleReply accum Zero st {
                     numObjectsToAcknowledge    = 0,
                     requestedObjectIdsInFlight = numObjectIdsToRequest

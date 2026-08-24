@@ -912,8 +912,18 @@ unit_decodeObjectDiffusion spec =
     validateDecoder (Just indefiniteListFix)
       spec objectDiffusionCodec
       [ SomeAgency   ObjectDiffusion.SingInit
-      , SomeAgency $ ObjectDiffusion.SingObjectIds ObjectDiffusion.SingBlocking
-      , SomeAgency $ ObjectDiffusion.SingObjectIds ObjectDiffusion.SingNonBlocking
+      , SomeAgency $
+          ObjectDiffusion.SingObjectIds
+            ObjectDiffusion.SingBlocking
+            ObjectDiffusion.SingCanAwait
+      , SomeAgency $
+          ObjectDiffusion.SingObjectIds
+            ObjectDiffusion.SingBlocking
+            ObjectDiffusion.SingMustReply
+      , SomeAgency $
+          ObjectDiffusion.SingObjectIds
+            ObjectDiffusion.SingNonBlocking
+            ObjectDiffusion.SingCanAwait
       , SomeAgency   ObjectDiffusion.SingObjects
       , SomeAgency   ObjectDiffusion.SingIdle
       ]
