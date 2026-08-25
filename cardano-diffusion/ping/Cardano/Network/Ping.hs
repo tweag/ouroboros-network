@@ -25,7 +25,6 @@ module Cardano.Network.Ping
   , pingClient
     -- * Options and arguments
   , PingOpts (..)
-  , HashType (..)
   , Stage (..)
   , ResolvedSRVOrFilePath (..)
   , Address (IP)
@@ -283,7 +282,7 @@ pingOptsParser =
         )
     <*> option pingMode
         (  long "mode"
-        <> helpDoc (Pretty.hang 2 $
+        <> helpDoc (Just $ Pretty.hang 2 $
                  "Mode, either ping, tip or query:"
               <> Pretty.softline
               <> "ping  - send pings via keep-alive protocol (node-to-node only),"
