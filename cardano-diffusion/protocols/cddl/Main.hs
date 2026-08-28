@@ -914,16 +914,17 @@ unit_decodeObjectDiffusion spec =
       [ SomeAgency   ObjectDiffusion.SingInit
       , SomeAgency $
           ObjectDiffusion.SingObjectIds
-            ObjectDiffusion.SingBlocking
-            ObjectDiffusion.SingCanAwait
+            ( ObjectDiffusion.SingObjectIdsBlocking
+                ObjectDiffusion.SingCanAwait
+            )
       , SomeAgency $
           ObjectDiffusion.SingObjectIds
-            ObjectDiffusion.SingBlocking
-            ObjectDiffusion.SingMustReply
+            ( ObjectDiffusion.SingObjectIdsBlocking
+                ObjectDiffusion.SingMustReply
+            )
       , SomeAgency $
           ObjectDiffusion.SingObjectIds
-            ObjectDiffusion.SingNonBlocking
-            ObjectDiffusion.SingCanAwait
+            ObjectDiffusion.SingObjectIdsNonBlocking
       , SomeAgency   ObjectDiffusion.SingObjects
       , SomeAgency   ObjectDiffusion.SingIdle
       ]
