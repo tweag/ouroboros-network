@@ -42,30 +42,29 @@ byteLimitsObjectDiffusion = ProtocolSizeLimits stateToLimit
          ActiveState st
       => StateToken st
       -> Word
-    stateToLimit SingInit                          = smallByteLimit
-    stateToLimit (SingObjectIds SingBlocking _)    = largeByteLimit
-    stateToLimit (SingObjectIds SingNonBlocking _) = largeByteLimit
-    stateToLimit SingObjects                       = largeByteLimit
-    stateToLimit SingIdle                          = smallByteLimit
-    stateToLimit a@SingDone                        = notActiveState a
+    stateToLimit SingInit          = smallByteLimit
+    stateToLimit (SingObjectIds _) = largeByteLimit
+    stateToLimit SingObjects       = largeByteLimit
+    stateToLimit SingIdle          = smallByteLimit
+    stateToLimit a@SingDone        = notActiveState a
 
 -- | 'ObjectDiffusion' time limits.
 --
--- +--------------------------------------------+---------------+
--- | 'ObjectDiffusion' state                    | timeout (s)   |
--- +============================================+===============+
--- | `StInit`                                   | `waitForever` |
--- +--------------------------------------------+---------------+
--- | `StIdle`                                   | `waitForever` |
--- +--------------------------------------------+---------------+
--- | @'StObjectIds' 'StBlocking' 'StCanAwait'@  | `shortWait`   |
--- +--------------------------------------------+---------------+
--- | @'StObjectIds' 'StBlocking' 'StMustReply'@ | `longWait`    |
--- +--------------------------------------------+---------------+
--- | @'StObjectIds' 'StNonBlocking' phase@      | `shortWait`   |
--- +--------------------------------------------+---------------+
--- | `StObjects`                                | `shortWait`   |
--- +--------------------------------------------+---------------+
+-- +-------------------------------------------------------+---------------+
+-- | 'ObjectDiffusion' state                               | timeout (s)   |
+-- +=======================================================+===============+
+-- | `StInit`                                              | `waitForever` |
+-- +-------------------------------------------------------+---------------+
+-- | `StIdle`                                              | `waitForever` |
+-- +-------------------------------------------------------+---------------+
+-- | @'StObjectIds' 'StObjectIdsNonBlocking'@              | `shortWait`   |
+-- +-------------------------------------------------------+---------------+
+-- | @'StObjectIds' ('StObjectIdsBlocking' 'StCanAwait')@  | `shortWait`   |
+-- +-------------------------------------------------------+---------------+
+-- | @'StObjectIds' ('StObjectIdsBlocking' 'StMustReply')@ | `longWait`    |
+-- +-------------------------------------------------------+---------------+
+-- | `StObjects`                                           | `shortWait`   |
+-- +-------------------------------------------------------+---------------+
 timeLimitsObjectDiffusion
   :: forall (objectId :: Type) (object :: Type).
      ProtocolTimeLimits (ObjectDiffusion objectId object)
@@ -76,13 +75,13 @@ timeLimitsObjectDiffusion = ProtocolTimeLimits stateToLimit
          ActiveState st
       => StateToken st
       -> Maybe DiffTime
-    stateToLimit SingInit                                   = waitForever
-    stateToLimit (SingObjectIds SingBlocking SingCanAwait)  = shortWait
-    stateToLimit (SingObjectIds SingBlocking SingMustReply) = longWait
-    stateToLimit (SingObjectIds SingNonBlocking _)          = shortWait
-    stateToLimit SingObjects                                = shortWait
-    stateToLimit SingIdle                                   = waitForever
-    stateToLimit a@SingDone                                 = notActiveState a
+    stateToLimit SingInit = waitForever
+    stateToLimit (SingObjectIds SingObjectIdsNonBlocking) = shortWait
+    stateToLimit (SingObjectIds (SingObjectIdsBlocking SingCanAwait)) = shortWait
+    stateToLimit (SingObjectIds (SingObjectIdsBlocking SingMustReply)) = longWait
+    stateToLimit SingObjects = shortWait
+    stateToLimit SingIdle = waitForever
+    stateToLimit a@SingDone = notActiveState a
 
 codecObjectDiffusion
   :: forall (objectId :: Type) (object :: Type) m.
@@ -124,13 +123,13 @@ encodeObjectDiffusion encodeObjectId encodeObject = encode
     encode MsgInit =
          CBOR.encodeListLen 1
       <> CBOR.encodeWord 0
-    encode (MsgRequestObjectIds blocking (NumObjectIdsAck ackNo) (NumObjectIdsReq reqNo)) =
+    encode (MsgRequestObjectIds requestKind (NumObjectIdsAck ackNo) (NumObjectIdsReq reqNo)) =
          CBOR.encodeListLen 4
       <> CBOR.encodeWord 1
       <> CBOR.encodeBool
-           ( case blocking of
-               SingBlocking    -> True
-               SingNonBlocking -> False
+           ( case requestKind of
+               RequestObjectIdsBlocking    -> True
+               RequestObjectIdsNonBlocking -> False
            )
       <> CBOR.encodeWord16 ackNo
       <> CBOR.encodeWord16 reqNo
@@ -190,25 +189,25 @@ decodeObjectDiffusion decodeObjectId decodeObject = decode
           ackNo <- NumObjectIdsAck <$> CBOR.decodeWord16
           reqNo <- NumObjectIdsReq <$> CBOR.decodeWord16
           return $! if blocking
-            then SomeMessage $ MsgRequestObjectIds SingBlocking ackNo reqNo
-            else SomeMessage $ MsgRequestObjectIds SingNonBlocking ackNo reqNo
-        (SingObjectIds b phase, 2, 2) -> withSingI phase $ do
+            then SomeMessage $ MsgRequestObjectIds RequestObjectIdsBlocking ackNo reqNo
+            else SomeMessage $ MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo reqNo
+        (SingObjectIds kind, 2, 2) -> withSingI kind $ do
           CBOR.decodeListLenIndef
           objIds <- CBOR.decodeSequenceLenIndef
                       (flip (:))
                       []
                       reverse
                       decodeObjectId
-          case (b, objIds) of
-            (SingBlocking, t : ts) ->
+          case (kind, objIds) of
+            (SingObjectIdsBlocking _, t : ts) ->
               return
                 $ SomeMessage
                 $ MsgReplyObjectIds (BlockingReply (t NonEmpty.:| ts))
-            (SingNonBlocking, ts) ->
+            (SingObjectIdsNonBlocking, ts) ->
               return
                 $ SomeMessage
                 $ MsgReplyObjectIds (NonBlockingReply ts)
-            (SingBlocking, []) ->
+            (SingObjectIdsBlocking _, []) ->
               fail "codecObjectDiffusion: MsgReplyObjectIds: empty list not permitted"
         (SingIdle, 2, 3) -> do
           CBOR.decodeListLenIndef
@@ -228,15 +227,15 @@ decodeObjectDiffusion decodeObjectId decodeObject = decode
           return $ SomeMessage $ MsgReplyObjects objIds
         (SingIdle, 1, 5) ->
           return $ SomeMessage MsgDone
-        (SingObjectIds SingBlocking SingMustReply, 1, 6) ->
+        (SingObjectIds (SingObjectIdsBlocking SingMustReply), 1, 6) ->
           return $ SomeMessage MsgServerIdle
-        (SingObjectIds SingBlocking SingCanAwait, 1, 7) ->
+        (SingObjectIds (SingObjectIdsBlocking SingCanAwait), 1, 7) ->
           return $ SomeMessage MsgAwaitReply
         (SingDone, _, _) -> notActiveState stok
         -- failures per protocol state
         (SingInit, _, _) ->
           fail (formatToString fmterr (activeAgency :: ActiveAgency st') stok key len)
-        (SingObjectIds _ _, _, _) ->
+        (SingObjectIds _, _, _) ->
           fail (formatToString fmterr (activeAgency :: ActiveAgency st') stok key len)
         (SingObjects, _, _) ->
           fail (formatToString fmterr (activeAgency :: ActiveAgency st') stok key len)
@@ -283,29 +282,29 @@ codecObjectDiffusionId = Codec {encode, decode}
       return $ case (stok, bytes) of
         (SingInit, Just (AnyMessage msg@MsgInit)) ->
           DecodeDone (SomeMessage msg) Nothing
-        (SingIdle, Just (AnyMessage msg@(MsgRequestObjectIds SingBlocking _ _))) ->
+        (SingIdle, Just (AnyMessage msg@(MsgRequestObjectIds RequestObjectIdsBlocking _ _))) ->
           DecodeDone (SomeMessage msg) Nothing
-        (SingIdle, Just (AnyMessage msg@(MsgRequestObjectIds SingNonBlocking _ _))) ->
+        (SingIdle, Just (AnyMessage msg@(MsgRequestObjectIds RequestObjectIdsNonBlocking _ _))) ->
           DecodeDone (SomeMessage msg) Nothing
         (SingIdle, Just (AnyMessage msg@(MsgRequestObjects {}))) ->
           DecodeDone (SomeMessage msg) Nothing
         (SingObjects, Just (AnyMessage msg@(MsgReplyObjects {}))) ->
           DecodeDone (SomeMessage msg) Nothing
-        (SingObjectIds b phase, Just (AnyMessage msg)) -> withSingI phase $
-          case (b, phase, msg) of
-            (SingBlocking, _, MsgReplyObjectIds (BlockingReply objectIds)) ->
+        (SingObjectIds kind, Just (AnyMessage msg)) -> withSingI kind $
+          case (kind, msg) of
+            (SingObjectIdsBlocking _, MsgReplyObjectIds (BlockingReply objectIds)) ->
               DecodeDone
                 (SomeMessage (MsgReplyObjectIds (BlockingReply objectIds)))
                 Nothing
-            (SingBlocking, SingCanAwait, MsgAwaitReply) ->
+            (SingObjectIdsBlocking SingCanAwait, MsgAwaitReply) ->
               DecodeDone (SomeMessage MsgAwaitReply) Nothing
-            (SingBlocking, SingMustReply, MsgServerIdle) ->
+            (SingObjectIdsBlocking SingMustReply, MsgServerIdle) ->
               DecodeDone (SomeMessage MsgServerIdle) Nothing
-            (SingNonBlocking, SingCanAwait, MsgReplyObjectIds (NonBlockingReply objectIds)) ->
+            (SingObjectIdsNonBlocking, MsgReplyObjectIds (NonBlockingReply objectIds)) ->
               DecodeDone
                 (SomeMessage (MsgReplyObjectIds (NonBlockingReply objectIds)))
                 Nothing
-            (_, _, _) ->
+            (_, _) ->
               DecodeFail $ CodecFailure "codecObjectDiffusionId: no matching message"
         (SingIdle, Just (AnyMessage msg@MsgDone)) ->
           DecodeDone (SomeMessage msg) Nothing

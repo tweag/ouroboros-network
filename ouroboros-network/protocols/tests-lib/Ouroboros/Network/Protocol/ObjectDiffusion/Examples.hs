@@ -18,9 +18,9 @@ import Network.TypedProtocol.Core
 
 import Ouroboros.Network.Protocol.ObjectDiffusion.Inbound
 import Ouroboros.Network.Protocol.ObjectDiffusion.Outbound
-import Ouroboros.Network.Protocol.ObjectDiffusion.Type (BlockingReplyList (..),
-           NumObjectIdsAck (..), NumObjectIdsReq (..), SingBlockingStyle (..),
-           StObjectIdsKind (..))
+import Ouroboros.Network.Protocol.ObjectDiffusion.Type (NumObjectIdsAck (..),
+           NumObjectIdsReq (..), ObjectIdsReplyList (..),
+           ObjectIdsRequestKind (..))
 
 import Control.Exception (assert)
 import Control.Monad (when)
@@ -84,12 +84,12 @@ testObjectDiffusionOutbound tracer objectId maxUnacked =
               unackedMap
               (Map.fromList [ (x, ()) | x <- Foldable.toList unackedSeq ])
 
-          recvMsgRequestObjectIds :: forall blocking.
-                                     SingBlockingStyle blocking
+          recvMsgRequestObjectIds :: forall kind.
+                                     ObjectIdsRequestKind kind
                                   -> NumObjectIdsAck
                                   -> NumObjectIdsReq
-                                  -> m (OutboundStObjectIds blocking 'StCanAwait objectId object m ())
-          recvMsgRequestObjectIds blocking ackNo reqNo = do
+                                  -> m (OutboundStObjectIds kind objectId object m ())
+          recvMsgRequestObjectIds requestKind ackNo reqNo = do
             traceWith tracer $
               EventRecvMsgRequestObjectIds
                 unackedSeq unackedMap remainingObjects ackNo reqNo
@@ -109,8 +109,8 @@ testObjectDiffusionOutbound tracer objectId maxUnacked =
                 unackedMap' = Foldable.foldl' (flip Map.delete) unackedMap
                                 (Seq.take (fromIntegral ackNo) unackedSeq)
 
-            case blocking of
-              SingBlocking | not (Seq.null unackedSeq')
+            case requestKind of
+              RequestObjectIdsBlocking | not (Seq.null unackedSeq')
                 -> error $ "testObjectDiffusionOutbound.recvMsgRequestObjectIds: "
                         <> "peer made a blocking request for more object IDs when "
                         <> "there are still unacknowledged object IDs."
@@ -126,18 +126,18 @@ testObjectDiffusionOutbound tracer objectId maxUnacked =
                                                  | obj <- unackedExtra ]
                 remainingObjects' = drop (fromIntegral reqNo) remainingObjects
 
-            return $! case (blocking, unackedExtra) of
-              (SingBlocking, []) ->
+            return $! case (requestKind, unackedExtra) of
+              (RequestObjectIdsBlocking, []) ->
                 SendMsgAwaitReply $ pure $
                   SendMsgServerIdle
                     (outboundIdle unackedSeq'' unackedMap'' remainingObjects')
 
-              (SingBlocking, obj : objs) ->
+              (RequestObjectIdsBlocking, obj : objs) ->
                 SendMsgReplyObjectIds
                   (BlockingReply (fmap objectId (obj :| objs)))
                   (outboundIdle unackedSeq'' unackedMap'' remainingObjects')
 
-              (SingNonBlocking, objs) ->
+              (RequestObjectIdsNonBlocking, objs) ->
                 SendMsgReplyObjectIds
                   (NonBlockingReply (fmap objectId objs))
                   (outboundIdle unackedSeq'' unackedMap'' remainingObjects')

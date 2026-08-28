@@ -74,7 +74,7 @@ data InboundStIdle (n :: N) objectId object m a where
 -- | Transform a 'ObjectDiffusionInboundPipelined' into a 'PeerPipelined'.
 objectDiffusionInboundPeerPipelined
   :: forall objectId object m a.
-     Monad m
+     Functor m
   => ObjectDiffusionInboundPipelined objectId object m a
   -> PeerPipelined (ObjectDiffusion objectId object) AsClient StInit m a
 objectDiffusionInboundPeerPipelined (ObjectDiffusionInboundPipelined inboundSt) =
@@ -85,22 +85,22 @@ objectDiffusionInboundPeerPipelined (ObjectDiffusionInboundPipelined inboundSt) 
       -> Peer (ObjectDiffusion objectId object) AsClient (Pipelined n (Collect objectId object)) StIdle m a
 
     run (SendMsgRequestObjectIdsBlocking ackNo reqNo onAwaitReply k onServerIdle) =
-          Yield (MsgRequestObjectIds SingBlocking ackNo reqNo)
+          Yield (MsgRequestObjectIds RequestObjectIdsBlocking ackNo reqNo)
             $ Await
             $ \case
                 MsgReplyObjectIds (BlockingReply objectIds) ->
                   run (k objectIds)
                 MsgAwaitReply ->
-                  Effect $ do
-                    onAwaitReply
-                    pure $ Await $ \case
+                  Effect $
+                    (Await $ \case
                       MsgReplyObjectIds (BlockingReply objectIds) ->
                         run (k objectIds)
                       MsgServerIdle ->
                         run onServerIdle
+                    ) <$ onAwaitReply
     run (SendMsgRequestObjectIdsPipelined ackNo reqNo k) =
           YieldPipelined
-            (MsgRequestObjectIds SingNonBlocking ackNo reqNo)
+            (MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo reqNo)
             (ReceiverAwait
               $ \(MsgReplyObjectIds (NonBlockingReply objectIds)) ->
                   ReceiverDone (CollectObjectIds reqNo objectIds)

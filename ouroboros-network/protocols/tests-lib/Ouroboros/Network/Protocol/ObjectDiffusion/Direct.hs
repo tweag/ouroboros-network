@@ -12,8 +12,8 @@ import Network.TypedProtocol.Proofs (Queue (..), enqueue)
 
 import Ouroboros.Network.Protocol.ObjectDiffusion.Inbound
 import Ouroboros.Network.Protocol.ObjectDiffusion.Outbound
-import Ouroboros.Network.Protocol.ObjectDiffusion.Type (BlockingReplyList (..),
-           SingBlockingStyle (..))
+import Ouroboros.Network.Protocol.ObjectDiffusion.Type (ObjectIdsReplyList (..),
+           ObjectIdsRequestKind (..))
 
 directPipelined
   :: forall objectId object m a b.
@@ -33,7 +33,7 @@ directPipelined (ObjectDiffusionOutbound mOutbound)
                  -> m b
     directSender q (SendMsgRequestObjectIdsBlocking ackNo reqNo inboundAwait inboundNext inboundIdle)
                    OutboundStIdle{recvMsgRequestObjectIds} = do
-      reply <- recvMsgRequestObjectIds SingBlocking ackNo reqNo
+      reply <- recvMsgRequestObjectIds RequestObjectIdsBlocking ackNo reqNo
       case reply of
         SendMsgReplyObjectIds (BlockingReply objectIds) outbound' -> do
           let inbound' = inboundNext objectIds
@@ -50,7 +50,7 @@ directPipelined (ObjectDiffusionOutbound mOutbound)
 
     directSender q (SendMsgRequestObjectIdsPipelined ackNo reqNo inbound')
                    OutboundStIdle{recvMsgRequestObjectIds} = do
-      reply <- recvMsgRequestObjectIds SingNonBlocking ackNo reqNo
+      reply <- recvMsgRequestObjectIds RequestObjectIdsNonBlocking ackNo reqNo
       case reply of
         SendMsgReplyObjectIds (NonBlockingReply objectIds) outbound' -> do
           directSender (enqueue (CollectObjectIds reqNo objectIds) q) inbound' outbound'

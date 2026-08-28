@@ -125,13 +125,13 @@ instance (Arbitrary objectId, Arbitrary object)
   arbitrary = oneof
     [ pure $ AnyMessage MsgInit
     , AnyMessage
-        <$> ( MsgRequestObjectIds SingBlocking
+        <$> ( MsgRequestObjectIds RequestObjectIdsBlocking
             <$> arbitrary
             <*> arbitrary
             )
 
     , AnyMessage
-        <$> ( MsgRequestObjectIds SingNonBlocking
+        <$> ( MsgRequestObjectIds RequestObjectIdsNonBlocking
             <$> arbitrary
             <*> arbitrary
             )
@@ -141,7 +141,7 @@ instance (Arbitrary objectId, Arbitrary object)
             ( MsgReplyObjectIds (BlockingReply objectIds)
                 :: Message
                     (ObjectDiffusion objectId object)
-                    (StObjectIds 'StBlocking 'StCanAwait)
+                    (StObjectIds ('StObjectIdsBlocking 'StCanAwait))
                     StIdle
             )
       )
@@ -152,7 +152,7 @@ instance (Arbitrary objectId, Arbitrary object)
             ( MsgReplyObjectIds (BlockingReply objectIds)
                 :: Message
                     (ObjectDiffusion objectId object)
-                    (StObjectIds 'StBlocking 'StMustReply)
+                    (StObjectIds ('StObjectIdsBlocking 'StMustReply))
                     StIdle
             )
       )
@@ -163,7 +163,7 @@ instance (Arbitrary objectId, Arbitrary object)
             ( MsgReplyObjectIds (NonBlockingReply objectIds)
                 :: Message
                     (ObjectDiffusion objectId object)
-                    (StObjectIds 'StNonBlocking 'StCanAwait)
+                    (StObjectIds 'StObjectIdsNonBlocking)
                     StIdle
             )
       )
@@ -191,12 +191,12 @@ instance (Eq objectId, Eq object)
   (==) (AnyMessage MsgInit)
        (AnyMessage MsgInit) = True
 
-  (==) (AnyMessage (MsgRequestObjectIds SingBlocking ackNo  reqNo))
-       (AnyMessage (MsgRequestObjectIds SingBlocking ackNo' reqNo')) =
+  (==) (AnyMessage (MsgRequestObjectIds RequestObjectIdsBlocking ackNo  reqNo))
+       (AnyMessage (MsgRequestObjectIds RequestObjectIdsBlocking ackNo' reqNo')) =
     (ackNo, reqNo) == (ackNo', reqNo')
 
-  (==) (AnyMessage (MsgRequestObjectIds SingNonBlocking ackNo  reqNo))
-       (AnyMessage (MsgRequestObjectIds SingNonBlocking ackNo' reqNo')) =
+  (==) (AnyMessage (MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo  reqNo))
+       (AnyMessage (MsgRequestObjectIds RequestObjectIdsNonBlocking ackNo' reqNo')) =
     (ackNo, reqNo) == (ackNo', reqNo')
 
   (==) (AnyMessage (MsgReplyObjectIds (BlockingReply objectIds)))
